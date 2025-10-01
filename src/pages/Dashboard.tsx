@@ -1,0 +1,461 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Wallet, PieChart, AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { toast } from "sonner";
+
+interface Asset {
+  id: string;
+  symbol: string;
+  name: string;
+  current_price: number;
+  previous_close: number;
+}
+
+interface Portfolio {
+  cash_balance: number;
+  total_value: number;
+  profit_loss: number;
+  profit_loss_percentage: number;
+}
+
+interface Position {
+  id: string;
+  quantity: number;
+  average_price: number;
+  current_value: number;
+  profit_loss: number;
+  assets: Asset;
+}
+
+interface NewsItem {
+  id: string;
+  title: string;
+  content: string;
+  category: string | null;
+  created_at: string;
+}
+
+const Dashboard = () => {
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [selectedAsset, setSelectedAsset] = useState<string>("");
+  const [quantity, setQuantity] = useState("");
+  const [orderType, setOrderType] = useState("market");
+  const [limitPrice, setLimitPrice] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+
+    const assetsChannel = supabase
+      .channel('assets-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => {
+        fetchAssets();
+      })
+      .subscribe();
+
+    const newsChannel = supabase
+      .channel('news-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'news' }, () => {
+        fetchNews();
+      })
+      .subscribe();
+
+    const portfolioChannel = supabase
+      .channel('portfolio-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'portfolios' }, () => {
+        fetchPortfolio();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(assetsChannel);
+      supabase.removeChannel(newsChannel);
+      supabase.removeChannel(portfolioChannel);
+    };
+  }, []);
+
+  const fetchData = async () => {
+    await Promise.all([fetchPortfolio(), fetchPositions(), fetchAssets(), fetchNews()]);
+  };
+
+  const fetchPortfolio = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("portfolios")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching portfolio:", error);
+      return;
+    }
+
+    setPortfolio(data);
+  };
+
+  const fetchPositions = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("positions")
+      .select("*, assets(*)")
+      .eq("user_id", session.user.id)
+      .gt("quantity", 0);
+
+    if (error) {
+      console.error("Error fetching positions:", error);
+      return;
+    }
+
+    setPositions(data || []);
+  };
+
+  const fetchAssets = async () => {
+    const { data, error } = await supabase
+      .from("assets")
+      .select("*")
+      .eq("is_active", true)
+      .order("symbol");
+
+    if (error) {
+      console.error("Error fetching assets:", error);
+      return;
+    }
+
+    setAssets(data || []);
+  };
+
+  const fetchNews = async () => {
+    const { data, error } = await supabase
+      .from("news")
+      .select("*")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.error("Error fetching news:", error);
+      return;
+    }
+
+    setNews(data || []);
+  };
+
+  const handlePlaceOrder = async (isBuy: boolean) => {
+    if (!selectedAsset || !quantity) {
+      toast.error("Please select an asset and enter quantity");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const asset = assets.find(a => a.id === selectedAsset);
+      if (!asset) throw new Error("Asset not found");
+
+      const qty = parseFloat(quantity);
+      const price = orderType === "limit" && limitPrice ? parseFloat(limitPrice) : asset.current_price;
+      const totalCost = qty * price * (isBuy ? 1.001 : 0.999); // Include 0.1% transaction cost
+
+      // Check if user has sufficient funds for buy orders
+      if (isBuy && portfolio && totalCost > portfolio.cash_balance) {
+        throw new Error("Insufficient funds");
+      }
+
+      const { error } = await supabase.from("orders").insert([{
+        user_id: session.user.id,
+        asset_id: selectedAsset,
+        order_type: orderType as "market" | "limit" | "stop_loss",
+        quantity: qty,
+        price: orderType === "limit" ? price : null,
+        is_buy: isBuy,
+        status: "pending" as "pending",
+      }]);
+
+      if (error) throw error;
+
+      toast.success(`${isBuy ? "Buy" : "Sell"} order placed successfully!`);
+      setQuantity("");
+      setLimitPrice("");
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to place order");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getPriceChange = (current: number, previous: number | null) => {
+    if (!previous) return 0;
+    return ((current - previous) / previous) * 100;
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Portfolio Overview */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
+              <PieChart className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">₹{portfolio?.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Cash Balance</CardTitle>
+              <Wallet className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">₹{portfolio?.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Profit/Loss</CardTitle>
+              {portfolio && portfolio.profit_loss >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-profit" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-loss" />
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${portfolio && portfolio.profit_loss >= 0 ? 'text-profit' : 'text-loss'}`}>
+                ₹{portfolio?.profit_loss.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Return %</CardTitle>
+              {portfolio && portfolio.profit_loss_percentage >= 0 ? (
+                <ArrowUpRight className="h-4 w-4 text-profit" />
+              ) : (
+                <ArrowDownRight className="h-4 w-4 text-loss" />
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${portfolio && portfolio.profit_loss_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {portfolio?.profit_loss_percentage.toFixed(2)}%
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Trading Panel */}
+          <Card className="lg:col-span-2 border-border">
+            <CardHeader>
+              <CardTitle>Place Order</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Select Asset</Label>
+                <Select value={selectedAsset} onValueChange={setSelectedAsset}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose an asset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assets.map((asset) => (
+                      <SelectItem key={asset.id} value={asset.id}>
+                        {asset.symbol} - ₹{asset.current_price.toFixed(2)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Order Type</Label>
+                  <Select value={orderType} onValueChange={setOrderType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="market">Market</SelectItem>
+                      <SelectItem value="limit">Limit</SelectItem>
+                      <SelectItem value="stop_loss">Stop Loss</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              {orderType === "limit" && (
+                <div className="space-y-2">
+                  <Label>Limit Price</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={limitPrice}
+                    onChange={(e) => setLimitPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button 
+                  className="flex-1 bg-buy hover:bg-buy/90" 
+                  onClick={() => handlePlaceOrder(true)}
+                  disabled={loading}
+                >
+                  Buy
+                </Button>
+                <Button 
+                  className="flex-1 bg-sell hover:bg-sell/90" 
+                  onClick={() => handlePlaceOrder(false)}
+                  disabled={loading}
+                >
+                  Sell
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* News Feed */}
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle>Market News</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {news.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No news updates yet</p>
+              ) : (
+                news.map((item) => (
+                  <div key={item.id} className="border-b border-border pb-3 last:border-0">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-primary mt-1" />
+                      <div>
+                        <h4 className="font-medium text-sm">{item.title}</h4>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.content}</p>
+                        {item.category && (
+                          <Badge variant="secondary" className="mt-2 text-xs">{item.category}</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Positions */}
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle>Your Positions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {positions.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No positions yet. Start trading!</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-3 px-2 text-sm font-medium">Symbol</th>
+                      <th className="text-right py-3 px-2 text-sm font-medium">Quantity</th>
+                      <th className="text-right py-3 px-2 text-sm font-medium">Avg Price</th>
+                      <th className="text-right py-3 px-2 text-sm font-medium">Current</th>
+                      <th className="text-right py-3 px-2 text-sm font-medium">P/L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positions.map((position) => (
+                      <tr key={position.id} className="border-b border-border last:border-0">
+                        <td className="py-3 px-2">
+                          <div>
+                            <p className="font-medium">{position.assets.symbol}</p>
+                            <p className="text-xs text-muted-foreground">{position.assets.name}</p>
+                          </div>
+                        </td>
+                        <td className="text-right py-3 px-2">{position.quantity}</td>
+                        <td className="text-right py-3 px-2">₹{position.average_price.toFixed(2)}</td>
+                        <td className="text-right py-3 px-2">₹{position.assets.current_price.toFixed(2)}</td>
+                        <td className={`text-right py-3 px-2 font-medium ${position.profit_loss >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          ₹{position.profit_loss.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Market Overview */}
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle>Market Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {assets.map((asset) => {
+                const change = getPriceChange(asset.current_price, asset.previous_close);
+                return (
+                  <div key={asset.id} className="border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold">{asset.symbol}</h4>
+                        <p className="text-xs text-muted-foreground">{asset.name}</p>
+                      </div>
+                      <Badge variant={change >= 0 ? "default" : "destructive"} className={change >= 0 ? "bg-profit hover:bg-profit/90" : ""}>
+                        {change >= 0 ? "+" : ""}{change.toFixed(2)}%
+                      </Badge>
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-2xl font-bold">₹{asset.current_price.toFixed(2)}</p>
+                      {asset.previous_close && (
+                        <p className="text-xs text-muted-foreground">Prev: ₹{asset.previous_close.toFixed(2)}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Dashboard;
