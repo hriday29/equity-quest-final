@@ -62,6 +62,7 @@ export default {
         buy: "hsl(var(--buy))",
         sell: "hsl(var(--sell))",
         pending: "hsl(var(--pending))",
+        warning: "hsl(var(--warning))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -85,10 +86,69 @@ export default {
             height: "0",
           },
         },
+        "price-up": {
+          "0%": {
+            backgroundColor: "hsl(var(--profit) / 0.2)",
+            transform: "scale(1)",
+          },
+          "50%": {
+            backgroundColor: "hsl(var(--profit) / 0.4)",
+            transform: "scale(1.02)",
+          },
+          "100%": {
+            backgroundColor: "transparent",
+            transform: "scale(1)",
+          },
+        },
+        "price-down": {
+          "0%": {
+            backgroundColor: "hsl(var(--loss) / 0.2)",
+            transform: "scale(1)",
+          },
+          "50%": {
+            backgroundColor: "hsl(var(--loss) / 0.4)",
+            transform: "scale(1.02)",
+          },
+          "100%": {
+            backgroundColor: "transparent",
+            transform: "scale(1)",
+          },
+        },
+        "pulse-live": {
+          "0%, 100%": {
+            opacity: "1",
+          },
+          "50%": {
+            opacity: "0.7",
+          },
+        },
+        "fade-in": {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(10px)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0)",
+          },
+        },
+        "slide-in": {
+          "0%": {
+            transform: "translateX(-100%)",
+          },
+          "100%": {
+            transform: "translateX(0)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "price-up": "price-up 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+        "price-down": "price-down 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+        "pulse-live": "pulse-live 2s infinite",
+        "fade-in": "fade-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        "slide-in": "slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       },
     },
   },

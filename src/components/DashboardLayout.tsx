@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, TrendingUp, LayoutDashboard, Settings, Users, MessageSquare, Trophy } from "lucide-react";
+import { LogOut, TrendingUp, LayoutDashboard, Settings, Users, MessageSquare, Trophy, History } from "lucide-react";
 import { toast } from "sonner";
 
 interface DashboardLayoutProps {
@@ -54,6 +54,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/leaderboard", label: "Leaderboard", icon: Trophy },
     { path: "/messages", label: "Messages", icon: MessageSquare },
+    { path: "/transactions", label: "History", icon: History },
   ];
 
   if (isAdmin) {

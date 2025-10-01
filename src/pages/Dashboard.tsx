@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Wallet, PieChart, AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { toast } from "sonner";
+import { orderExecutionEngine } from "@/services/orderExecution";
 
 interface Asset {
   id: string;
@@ -52,6 +53,8 @@ const Dashboard = () => {
   const [orderType, setOrderType] = useState("market");
   const [limitPrice, setLimitPrice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [priceChanges, setPriceChanges] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [competitionStatus, setCompetitionStatus] = useState<string>("not_started");
 
   useEffect(() => {
     fetchData();
@@ -77,15 +80,39 @@ const Dashboard = () => {
       })
       .subscribe();
 
+    const competitionChannel = supabase
+      .channel('competition-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'competition_rounds' }, () => {
+        fetchCompetitionStatus();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(assetsChannel);
       supabase.removeChannel(newsChannel);
       supabase.removeChannel(portfolioChannel);
+      supabase.removeChannel(competitionChannel);
     };
   }, []);
 
   const fetchData = async () => {
-    await Promise.all([fetchPortfolio(), fetchPositions(), fetchAssets(), fetchNews()]);
+    await Promise.all([fetchPortfolio(), fetchPositions(), fetchAssets(), fetchNews(), fetchCompetitionStatus()]);
+  };
+
+  const fetchCompetitionStatus = async () => {
+    try {
+      const { data } = await supabase
+        .from("competition_rounds")
+        .select("status")
+        .eq("round_number", 1)
+        .single();
+      
+      if (data) {
+        setCompetitionStatus(data.status);
+      }
+    } catch (error) {
+      console.error("Error fetching competition status:", error);
+    }
   };
 
   const fetchPortfolio = async () => {
@@ -136,7 +163,24 @@ const Dashboard = () => {
       return;
     }
 
-    setAssets(data || []);
+    // Track price changes for animations
+    if (data) {
+      setAssets(prevAssets => {
+        const newPriceChanges: Record<string, 'up' | 'down' | null> = {};
+        data.forEach(asset => {
+          const prevAsset = prevAssets.find(a => a.id === asset.id);
+          if (prevAsset && prevAsset.current_price !== asset.current_price) {
+            newPriceChanges[asset.id] = asset.current_price > prevAsset.current_price ? 'up' : 'down';
+            // Clear animation after 1 second
+            setTimeout(() => {
+              setPriceChanges(prev => ({ ...prev, [asset.id]: null }));
+            }, 1000);
+          }
+        });
+        setPriceChanges(prev => ({ ...prev, ...newPriceChanges }));
+        return data;
+      });
+    }
   };
 
   const fetchNews = async () => {
@@ -171,30 +215,43 @@ const Dashboard = () => {
       if (!asset) throw new Error("Asset not found");
 
       const qty = parseFloat(quantity);
-      const price = orderType === "limit" && limitPrice ? parseFloat(limitPrice) : asset.current_price;
-      const totalCost = qty * price * (isBuy ? 1.001 : 0.999); // Include 0.1% transaction cost
+      const price = orderType === "limit" && limitPrice ? parseFloat(limitPrice) : null;
+      const stopPrice = orderType === "stop_loss" && limitPrice ? parseFloat(limitPrice) : null;
 
-      // Check if user has sufficient funds for buy orders
-      if (isBuy && portfolio && totalCost > portfolio.cash_balance) {
-        throw new Error("Insufficient funds");
+      // Execute order using the order execution engine
+      const result = await orderExecutionEngine.executeOrder(
+        session.user.id,
+        selectedAsset,
+        orderType as "market" | "limit" | "stop_loss",
+        qty,
+        price,
+        stopPrice,
+        isBuy
+      );
+
+      if (result.success) {
+        // Create order record for history
+        await supabase.from("orders").insert([{
+          user_id: session.user.id,
+          asset_id: selectedAsset,
+          order_type: orderType as "market" | "limit" | "stop_loss",
+          quantity: qty,
+          price: price,
+          stop_price: stopPrice,
+          is_buy: isBuy,
+          status: "executed" as "executed",
+          executed_price: result.executedPrice,
+          executed_at: result.executedAt,
+        }]);
+
+        toast.success(`${isBuy ? "Buy" : "Sell"} order executed successfully!`);
+        setQuantity("");
+        setLimitPrice("");
+        fetchData();
+      } else {
+        console.error('Order execution failed:', result.message);
+        toast.error(result.message);
       }
-
-      const { error } = await supabase.from("orders").insert([{
-        user_id: session.user.id,
-        asset_id: selectedAsset,
-        order_type: orderType as "market" | "limit" | "stop_loss",
-        quantity: qty,
-        price: orderType === "limit" ? price : null,
-        is_buy: isBuy,
-        status: "pending" as "pending",
-      }]);
-
-      if (error) throw error;
-
-      toast.success(`${isBuy ? "Buy" : "Sell"} order placed successfully!`);
-      setQuantity("");
-      setLimitPrice("");
-      fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to place order");
     } finally {
@@ -210,55 +267,79 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Competition Status Banner */}
+        {competitionStatus !== "active" && (
+          <Card className={`card-enhanced ${competitionStatus === "not_started" ? "glow-danger" : "glow-primary"}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-warning" />
+                <div>
+                  <h3 className="font-semibold">
+                    Competition {competitionStatus === "not_started" ? "Not Started" : 
+                                competitionStatus === "paused" ? "Paused" : 
+                                competitionStatus === "completed" ? "Completed" : "Inactive"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {competitionStatus === "not_started" ? "The competition has not been started yet. Please wait for the admin to begin." :
+                     competitionStatus === "paused" ? "The competition is currently paused. Trading is disabled." :
+                     competitionStatus === "completed" ? "The competition has ended. Thank you for participating!" :
+                     "Trading is currently disabled."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Portfolio Overview */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-border">
+          <Card className="card-enhanced">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-              <PieChart className="h-4 w-4 text-primary" />
+              <PieChart className="h-4 w-4 text-primary pulse-live" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{portfolio?.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div className="text-2xl font-bold animate-fade-in">₹{portfolio?.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-border">
+          <Card className="card-enhanced">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Cash Balance</CardTitle>
-              <Wallet className="h-4 w-4 text-primary" />
+              <Wallet className="h-4 w-4 text-primary pulse-live" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{portfolio?.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div className="text-2xl font-bold animate-fade-in">₹{portfolio?.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-border">
+          <Card className={`card-enhanced ${portfolio && portfolio.profit_loss >= 0 ? 'glow-success' : 'glow-danger'}`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Profit/Loss</CardTitle>
               {portfolio && portfolio.profit_loss >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-profit" />
+                <TrendingUp className="h-4 w-4 text-profit pulse-live" />
               ) : (
-                <TrendingDown className="h-4 w-4 text-loss" />
+                <TrendingDown className="h-4 w-4 text-loss pulse-live" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${portfolio && portfolio.profit_loss >= 0 ? 'text-profit' : 'text-loss'}`}>
+              <div className={`text-2xl font-bold animate-fade-in ${portfolio && portfolio.profit_loss >= 0 ? 'text-profit' : 'text-loss'}`}>
                 ₹{portfolio?.profit_loss.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-border">
+          <Card className={`card-enhanced ${portfolio && portfolio.profit_loss_percentage >= 0 ? 'glow-success' : 'glow-danger'}`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Return %</CardTitle>
               {portfolio && portfolio.profit_loss_percentage >= 0 ? (
-                <ArrowUpRight className="h-4 w-4 text-profit" />
+                <ArrowUpRight className="h-4 w-4 text-profit pulse-live" />
               ) : (
-                <ArrowDownRight className="h-4 w-4 text-loss" />
+                <ArrowDownRight className="h-4 w-4 text-loss pulse-live" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${portfolio && portfolio.profit_loss_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
+              <div className={`text-2xl font-bold animate-fade-in ${portfolio && portfolio.profit_loss_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
                 {portfolio?.profit_loss_percentage.toFixed(2)}%
               </div>
             </CardContent>
@@ -267,15 +348,18 @@ const Dashboard = () => {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Trading Panel */}
-          <Card className="lg:col-span-2 border-border">
+          <Card className="lg:col-span-2 card-enhanced">
             <CardHeader>
-              <CardTitle>Place Order</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Place Order
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Select Asset</Label>
                 <Select value={selectedAsset} onValueChange={setSelectedAsset}>
-                  <SelectTrigger>
+                  <SelectTrigger className="input-enhanced">
                     <SelectValue placeholder="Choose an asset" />
                   </SelectTrigger>
                   <SelectContent>
@@ -292,7 +376,7 @@ const Dashboard = () => {
                 <div className="space-y-2">
                   <Label>Order Type</Label>
                   <Select value={orderType} onValueChange={setOrderType}>
-                    <SelectTrigger>
+                    <SelectTrigger className="input-enhanced">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -312,6 +396,7 @@ const Dashboard = () => {
                     onChange={(e) => setQuantity(e.target.value)}
                     min="0"
                     step="0.01"
+                    className="input-enhanced"
                   />
                 </div>
               </div>
@@ -326,42 +411,46 @@ const Dashboard = () => {
                     onChange={(e) => setLimitPrice(e.target.value)}
                     min="0"
                     step="0.01"
+                    className="input-enhanced"
                   />
                 </div>
               )}
 
               <div className="flex gap-2">
                 <Button 
-                  className="flex-1 bg-buy hover:bg-buy/90" 
+                  className="flex-1 btn-buy" 
                   onClick={() => handlePlaceOrder(true)}
-                  disabled={loading}
+                  disabled={loading || competitionStatus !== "active"}
                 >
-                  Buy
+                  {loading ? "Processing..." : "Buy"}
                 </Button>
                 <Button 
-                  className="flex-1 bg-sell hover:bg-sell/90" 
+                  className="flex-1 btn-sell" 
                   onClick={() => handlePlaceOrder(false)}
-                  disabled={loading}
+                  disabled={loading || competitionStatus !== "active"}
                 >
-                  Sell
+                  {loading ? "Processing..." : "Sell"}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           {/* News Feed */}
-          <Card className="border-border">
+          <Card className="card-enhanced">
             <CardHeader>
-              <CardTitle>Market News</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-primary" />
+                Market News
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {news.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No news updates yet</p>
               ) : (
-                news.map((item) => (
-                  <div key={item.id} className="border-b border-border pb-3 last:border-0">
+                news.map((item, index) => (
+                  <div key={item.id} className={`border-b border-border pb-3 last:border-0 animate-fade-in`} style={{ animationDelay: `${index * 0.1}s` }}>
                     <div className="flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 text-primary mt-1" />
+                      <AlertCircle className="h-4 w-4 text-primary mt-1 pulse-live" />
                       <div>
                         <h4 className="font-medium text-sm">{item.title}</h4>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.content}</p>
@@ -378,9 +467,12 @@ const Dashboard = () => {
         </div>
 
         {/* Positions */}
-        <Card className="border-border">
+        <Card className="card-enhanced">
           <CardHeader>
-            <CardTitle>Your Positions</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="h-5 w-5 text-primary" />
+              Your Positions
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {positions.length === 0 ? (
@@ -422,27 +514,40 @@ const Dashboard = () => {
         </Card>
 
         {/* Market Overview */}
-        <Card className="border-border">
+        <Card className="card-enhanced">
           <CardHeader>
-            <CardTitle>Market Overview</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Market Overview
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {assets.map((asset) => {
+              {assets.map((asset, index) => {
                 const change = getPriceChange(asset.current_price, asset.previous_close);
+                const priceChange = priceChanges[asset.id];
                 return (
-                  <div key={asset.id} className="border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
+                  <div 
+                    key={asset.id} 
+                    className={`border border-border rounded-lg p-4 hover:border-primary/50 transition-all duration-300 hover:shadow-lg animate-fade-in ${
+                      priceChange === 'up' ? 'price-up' : priceChange === 'down' ? 'price-down' : ''
+                    }`}
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-bold">{asset.symbol}</h4>
                         <p className="text-xs text-muted-foreground">{asset.name}</p>
                       </div>
-                      <Badge variant={change >= 0 ? "default" : "destructive"} className={change >= 0 ? "bg-profit hover:bg-profit/90" : ""}>
+                      <Badge 
+                        variant={change >= 0 ? "default" : "destructive"} 
+                        className={`${change >= 0 ? "badge-executed" : "bg-gradient-to-r from-loss to-loss/80 text-white"} transition-all duration-300`}
+                      >
                         {change >= 0 ? "+" : ""}{change.toFixed(2)}%
                       </Badge>
                     </div>
                     <div className="mt-3">
-                      <p className="text-2xl font-bold">₹{asset.current_price.toFixed(2)}</p>
+                      <p className="text-2xl font-bold">{asset.current_price.toFixed(2)}</p>
                       {asset.previous_close && (
                         <p className="text-xs text-muted-foreground">Prev: ₹{asset.previous_close.toFixed(2)}</p>
                       )}

@@ -8,59 +8,68 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Fintech Dark Theme */
-    --background: 222 47% 7%;
+    /* Enhanced Fintech Dark Theme */
+    --background: 222 47% 4%;
     --foreground: 210 40% 98%;
 
-    --card: 222 47% 11%;
+    --card: 222 47% 8%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 47% 11%;
+    --popover: 222 47% 8%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 217 91% 60%;
+    --primary: 217 91% 65%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 217 19% 27%;
+    --secondary: 217 19% 22%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217 19% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 217 19% 15%;
+    --muted-foreground: 215 20% 70%;
 
-    --accent: 217 91% 60%;
+    --accent: 217 91% 65%;
     --accent-foreground: 210 40% 98%;
 
-    --success: 142 76% 36%;
+    --success: 142 76% 42%;
     --success-foreground: 144 61% 20%;
 
-    --profit: 142 71% 45%;
-    --profit-light: 142 76% 36%;
+    --profit: 142 71% 52%;
+    --profit-light: 142 76% 42%;
     
-    --loss: 0 84% 60%;
-    --loss-light: 0 72% 51%;
+    --loss: 0 84% 65%;
+    --loss-light: 0 72% 56%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 65%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217 19% 27%;
-    --input: 217 19% 27%;
-    --ring: 217 91% 60%;
+    --border: 217 19% 22%;
+    --input: 217 19% 22%;
+    --ring: 217 91% 65%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* Trading specific colors */
-    --buy: 142 76% 36%;
-    --sell: 0 84% 60%;
-    --pending: 45 93% 47%;
+    /* Enhanced Trading specific colors */
+    --buy: 142 76% 42%;
+    --sell: 0 84% 65%;
+    --pending: 45 93% 52%;
+    --warning: 38 92% 50%;
     
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(217, 91%, 70%));
-    --gradient-success: linear-gradient(135deg, hsl(142, 76%, 36%), hsl(142, 76%, 46%));
-    --gradient-danger: linear-gradient(135deg, hsl(0, 84%, 60%), hsl(0, 84%, 70%));
+    /* Enhanced Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 65%), hsl(217, 91%, 75%));
+    --gradient-success: linear-gradient(135deg, hsl(142, 76%, 42%), hsl(142, 76%, 52%));
+    --gradient-danger: linear-gradient(135deg, hsl(0, 84%, 65%), hsl(0, 84%, 75%));
+    --gradient-warning: linear-gradient(135deg, hsl(38, 92%, 50%), hsl(38, 92%, 60%));
+    --gradient-card: linear-gradient(135deg, hsl(222, 47%, 8%), hsl(222, 47%, 12%));
     
-    /* Shadows */
-    --shadow-glow: 0 0 30px hsl(217 91% 60% / 0.3);
-    --shadow-card: 0 4px 20px hsl(222 47% 4% / 0.5);
+    /* Enhanced Shadows */
+    --shadow-glow: 0 0 40px hsl(217 91% 65% / 0.4);
+    --shadow-card: 0 8px 32px hsl(222 47% 2% / 0.6);
+    --shadow-elevated: 0 16px 48px hsl(222 47% 2% / 0.8);
+    --shadow-inset: inset 0 2px 4px hsl(222 47% 2% / 0.3);
+    
+    /* Animation variables */
+    --animation-duration: 0.3s;
+    --animation-timing: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
@@ -71,5 +80,143 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Enhanced Card Styles */
+  .card-enhanced {
+    @apply bg-gradient-to-br from-card to-card/80 backdrop-blur-sm;
+    box-shadow: var(--shadow-card);
+    border: 1px solid hsl(var(--border) / 0.5);
+    transition: all var(--animation-duration) var(--animation-timing);
+  }
+
+  .card-enhanced:hover {
+    box-shadow: var(--shadow-elevated);
+    border-color: hsl(var(--primary) / 0.3);
+    transform: translateY(-2px);
+  }
+
+  /* Trading Button Styles */
+  .btn-buy {
+    @apply bg-gradient-to-r from-buy to-buy/90 text-white font-semibold;
+    box-shadow: 0 4px 16px hsl(var(--buy) / 0.3);
+    transition: all var(--animation-duration) var(--animation-timing);
+  }
+
+  .btn-buy:hover {
+    @apply from-buy/90 to-buy;
+    box-shadow: 0 6px 24px hsl(var(--buy) / 0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-sell {
+    @apply bg-gradient-to-r from-sell to-sell/90 text-white font-semibold;
+    box-shadow: 0 4px 16px hsl(var(--sell) / 0.3);
+    transition: all var(--animation-duration) var(--animation-timing);
+  }
+
+  .btn-sell:hover {
+    @apply from-sell/90 to-sell;
+    box-shadow: 0 6px 24px hsl(var(--sell) / 0.4);
+    transform: translateY(-1px);
+  }
+
+  /* Price Change Animations */
+  .price-up {
+    animation: priceUp 0.6s var(--animation-timing);
+  }
+
+  .price-down {
+    animation: priceDown 0.6s var(--animation-timing);
+  }
+
+  /* Glow Effects */
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 30px hsl(var(--profit) / 0.4);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 30px hsl(var(--loss) / 0.4);
+  }
+
+  /* Pulse Animation for Live Data */
+  .pulse-live {
+    animation: pulseLive 2s infinite;
+  }
+
+  /* Loading Skeleton */
+  .skeleton {
+    @apply bg-muted animate-pulse rounded;
+  }
+
+  /* Enhanced Input Styles */
+  .input-enhanced {
+    @apply bg-input/50 border-border/50 backdrop-blur-sm;
+    transition: all var(--animation-duration) var(--animation-timing);
+  }
+
+  .input-enhanced:focus {
+    @apply border-primary ring-2 ring-primary/20;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+  }
+
+  /* Status Badges */
+  .badge-executed {
+    @apply bg-gradient-to-r from-profit to-profit/80 text-white;
+    box-shadow: 0 2px 8px hsl(var(--profit) / 0.3);
+  }
+
+  .badge-pending {
+    @apply bg-gradient-to-r from-pending to-pending/80 text-white;
+    box-shadow: 0 2px 8px hsl(var(--pending) / 0.3);
+  }
+
+  .badge-cancelled {
+    @apply bg-gradient-to-r from-muted to-muted/80 text-muted-foreground;
+  }
+}
+
+@keyframes priceUp {
+  0% {
+    background-color: hsl(var(--profit) / 0.2);
+    transform: scale(1);
+  }
+  50% {
+    background-color: hsl(var(--profit) / 0.4);
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes priceDown {
+  0% {
+    background-color: hsl(var(--loss) / 0.2);
+    transform: scale(1);
+  }
+  50% {
+    background-color: hsl(var(--loss) / 0.4);
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseLive {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
   }
 }
