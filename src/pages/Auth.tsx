@@ -81,104 +81,151 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border shadow-2xl">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary/10 p-3 rounded-full">
-              <TrendingUp className="h-10 w-10 text-primary" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+      <div className="w-full max-w-md animate-fade-in">
+        <Card className="border-border shadow-2xl card-enhanced">
+          <CardHeader className="space-y-4 text-center pb-8">
+            <div className="flex justify-center">
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full"></div>
+                <div className="relative bg-gradient-to-br from-primary/20 to-primary/10 p-4 rounded-full border border-primary/20">
+                  <TrendingUp className="h-12 w-12 text-primary pulse-live" />
+                </div>
+              </div>
             </div>
-          </div>
-          <CardTitle className="text-3xl font-bold">Equity Quest</CardTitle>
-          <CardDescription>Mock Stock Trading Competition Platform</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Logging in..." : "Login"}
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="John Doe"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-team">Team Name</Label>
-                  <Input
-                    id="signup-team"
-                    type="text"
-                    placeholder="Team Alpha"
-                    value={signupTeam}
-                    onChange={(e) => setSignupTeam(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating account..." : "Create Account"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+            <div>
+              <CardTitle className="text-4xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
+                Equity Quest
+              </CardTitle>
+              <CardDescription className="text-base mt-2">The Apex Investors' Gauntlet</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 card-enhanced mb-6">
+                <TabsTrigger value="login" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  Sign In
+                </TabsTrigger>
+                <TabsTrigger value="signup" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  Register
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="login">
+                <form onSubmit={handleLogin} className="space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email" className="text-sm font-medium">Email Address</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="participant@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      className="input-enhanced h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password" className="text-sm font-medium">Password</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="Enter your password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      className="input-enhanced h-11"
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 btn-primary glow-primary hover-scale" 
+                    disabled={loading}
+                  >
+                    {loading ? "Signing in..." : "Sign In to Dashboard"}
+                  </Button>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="signup">
+                <form onSubmit={handleSignup} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name" className="text-sm font-medium">Full Name</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      required
+                      className="input-enhanced h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-team" className="text-sm font-medium">
+                      Team Name <span className="text-muted-foreground text-xs">(Optional)</span>
+                    </Label>
+                    <Input
+                      id="signup-team"
+                      type="text"
+                      placeholder="Team Alpha"
+                      value={signupTeam}
+                      onChange={(e) => setSignupTeam(e.target.value)}
+                      className="input-enhanced h-11"
+                    />
+                    <p className="text-xs text-muted-foreground">Join a team or compete individually</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email" className="text-sm font-medium">Email Address</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="participant@example.com"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      required
+                      className="input-enhanced h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password" className="text-sm font-medium">Password</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="Minimum 6 characters"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="input-enhanced h-11"
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 btn-primary glow-primary hover-scale" 
+                    disabled={loading}
+                  >
+                    {loading ? "Creating account..." : "Join Competition"}
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground mt-4">
+                    By registering, you agree to participate in the mock trading competition
+                  </p>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <div className="mt-6 text-center">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate("/")}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ← Back to Home
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

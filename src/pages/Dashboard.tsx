@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/DashboardLayout";
+import MarketOverview from "@/components/MarketOverview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Wallet, PieChart, AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TrendingUp, TrendingDown, Wallet, PieChart, AlertCircle, ArrowUpRight, ArrowDownRight, Activity, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { orderExecutionEngine } from "@/services/orderExecution";
 
@@ -17,6 +19,8 @@ interface Asset {
   name: string;
   current_price: number;
   previous_close: number;
+  asset_type: string;
+  sector: string | null;
 }
 
 interface Portfolio {
@@ -267,6 +271,22 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Activity className="h-8 w-8 text-primary" />
+              Trading Dashboard
+            </h1>
+            <p className="text-muted-foreground">Monitor markets and execute trades in real-time</p>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Live Market Data</span>
+            <div className="h-2 w-2 rounded-full bg-profit pulse-live"></div>
+          </div>
+        </div>
+
         {/* Competition Status Banner */}
         {competitionStatus !== "active" && (
           <Card className={`card-enhanced ${competitionStatus === "not_started" ? "glow-danger" : "glow-primary"}`}>
@@ -290,6 +310,9 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Market Overview - Moved to Top */}
+        <MarketOverview assets={assets} priceChanges={priceChanges} />
 
         {/* Portfolio Overview */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -346,9 +369,10 @@ const Dashboard = () => {
           </Card>
         </div>
 
+        {/* Trading & News Section */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Trading Panel */}
-          <Card className="lg:col-span-2 card-enhanced">
+          <Card className="lg:col-span-2 card-enhanced glow-primary">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
@@ -466,8 +490,15 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Positions */}
-        <Card className="card-enhanced">
+        {/* Positions & Recent Orders */}
+        <Tabs defaultValue="positions" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 card-enhanced">
+            <TabsTrigger value="positions">Your Positions</TabsTrigger>
+            <TabsTrigger value="orders">Recent Orders</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="positions">
+            <Card className="card-enhanced">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PieChart className="h-5 w-5 text-primary" />
@@ -512,52 +543,21 @@ const Dashboard = () => {
             )}
           </CardContent>
         </Card>
-
-        {/* Market Overview */}
-        <Card className="card-enhanced">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Market Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {assets.map((asset, index) => {
-                const change = getPriceChange(asset.current_price, asset.previous_close);
-                const priceChange = priceChanges[asset.id];
-                return (
-                  <div 
-                    key={asset.id} 
-                    className={`border border-border rounded-lg p-4 hover:border-primary/50 transition-all duration-300 hover:shadow-lg animate-fade-in ${
-                      priceChange === 'up' ? 'price-up' : priceChange === 'down' ? 'price-down' : ''
-                    }`}
-                    style={{ animationDelay: `${index * 0.1}s` }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-bold">{asset.symbol}</h4>
-                        <p className="text-xs text-muted-foreground">{asset.name}</p>
-                      </div>
-                      <Badge 
-                        variant={change >= 0 ? "default" : "destructive"} 
-                        className={`${change >= 0 ? "badge-executed" : "bg-gradient-to-r from-loss to-loss/80 text-white"} transition-all duration-300`}
-                      >
-                        {change >= 0 ? "+" : ""}{change.toFixed(2)}%
-                      </Badge>
-                    </div>
-                    <div className="mt-3">
-                      <p className="text-2xl font-bold">{asset.current_price.toFixed(2)}</p>
-                      {asset.previous_close && (
-                        <p className="text-xs text-muted-foreground">Prev: ₹{asset.previous_close.toFixed(2)}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+          </TabsContent>
+          
+          <TabsContent value="orders">
+            <Card className="card-enhanced">
+              <CardHeader>
+                <CardTitle>Recent Trade Executions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  View your complete order history in the <a href="/history" className="text-primary hover:underline">Transaction History</a> page
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
