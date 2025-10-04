@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, TrendingUp, LayoutDashboard, Settings, Users, MessageSquare, Trophy, History } from "lucide-react";
+import { LogOut, TrendingUp, LayoutDashboard, Settings, Users, MessageSquare, Trophy, History, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 
 interface DashboardLayoutProps {
@@ -52,6 +52,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/market", label: "Market Analysis", icon: BarChart3 },
     { path: "/leaderboard", label: "Leaderboard", icon: Trophy },
     { path: "/messages", label: "Messages", icon: MessageSquare },
     { path: "/transactions", label: "History", icon: History },

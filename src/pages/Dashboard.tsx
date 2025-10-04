@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, TrendingDown, Wallet, PieChart, AlertCircle, ArrowUpRight, ArrowDownRight, Activity, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PieChart, AlertCircle, ArrowUpRight, ArrowDownRight, Activity, Clock, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { orderExecutionEngine } from "@/services/orderExecution";
+import MarginWarningSystem from "@/components/MarginWarningSystem";
+import TradingHaltBanner from "@/components/TradingHaltBanner";
 
 interface Asset {
   id: string;
@@ -271,6 +273,8 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <TradingHaltBanner />
+        
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -492,9 +496,10 @@ const Dashboard = () => {
 
         {/* Positions & Recent Orders */}
         <Tabs defaultValue="positions" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 card-enhanced">
+          <TabsList className="grid w-full grid-cols-3 card-enhanced">
             <TabsTrigger value="positions">Your Positions</TabsTrigger>
             <TabsTrigger value="orders">Recent Orders</TabsTrigger>
+            <TabsTrigger value="margin">Margin Status</TabsTrigger>
           </TabsList>
           
           <TabsContent value="positions">
@@ -556,6 +561,10 @@ const Dashboard = () => {
                 </p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="margin">
+            <MarginWarningSystem />
           </TabsContent>
         </Tabs>
       </div>

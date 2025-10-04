@@ -1,14 +1,37 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface Position {
+  id: string;
+  user_id: string;
+  quantity: number;
+  current_value: number;
+  is_short: boolean;
+  initial_margin: number | null;
+  maintenance_margin: number | null;
+  assets: {
+    symbol: string;
+    current_price: number;
+  };
+}
+
+interface MarginWarning {
+  user_id: string;
+  position_id: string | null;
+  margin_level: number;
+  warning_type: 'maintenance_warning' | 'liquidation' | 'margin_call';
+  message: string;
+}
+
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -17,26 +40,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Checking margin requirements...');
-
-    // Get margin settings
-    const { data: marginSettings } = await supabaseClient
-      .from('competition_settings')
-      .select('setting_value')
-      .eq('setting_key', 'margin_requirements')
-      .single();
-
-    const margins = marginSettings?.setting_value || {
-      initial: 0.25,
-      maintenance: 0.15,
-      warning: 0.18,
-    };
-
     // Get all short positions
-    const { data: shortPositions, error: posError } = await supabaseClient
+    const { data: positions, error: positionsError } = await supabaseClient
       .from('positions')
       .select(`
-        *,
+        id,
+        user_id,
+        quantity,
+        current_value,
+        is_short,
+        initial_margin,
+        maintenance_margin,
         assets (
           symbol,
           current_price
@@ -45,135 +59,167 @@ serve(async (req) => {
       .eq('is_short', true)
       .gt('quantity', 0);
 
-    if (posError) throw posError;
+    if (positionsError) {
+      throw new Error(`Error fetching positions: ${positionsError.message}`);
+    }
 
-    const warnings = [];
-    const liquidations = [];
-
-    for (const position of shortPositions || []) {
-      const currentPrice = parseFloat(position.assets.current_price);
-      const averagePrice = parseFloat(position.average_price);
-      const quantity = parseFloat(position.quantity);
-
-      // Calculate P&L for short position
-      const positionValue = quantity * currentPrice;
-      const initialValue = quantity * averagePrice;
-      const pnl = initialValue - positionValue;
-
-      // Calculate margin level
-      const currentMargin = parseFloat(position.initial_margin) + pnl;
-      const marginPercentage = currentMargin / positionValue;
-
-      console.log(`Position ${position.id} - Margin: ${(marginPercentage * 100).toFixed(2)}%`);
-
-      // Check for liquidation (15% threshold)
-      if (marginPercentage <= margins.maintenance) {
-        console.log(`LIQUIDATION TRIGGERED for position ${position.id}`);
-
-        // Close the position (cover short)
-        await supabaseClient
-          .from('positions')
-          .delete()
-          .eq('id', position.id);
-
-        // Update portfolio cash
-        const finalValue = positionValue;
-        const returnedMargin = currentMargin;
-        const totalReturn = returnedMargin;
-
-        const { data: portfolio } = await supabaseClient
-          .from('portfolios')
-          .select('cash_balance')
-          .eq('user_id', position.user_id)
-          .single();
-
-        if (portfolio) {
-          await supabaseClient
-            .from('portfolios')
-            .update({
-              cash_balance: parseFloat(portfolio.cash_balance) + totalReturn,
-            })
-            .eq('user_id', position.user_id);
+    if (!positions || positions.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No short positions found',
+          warnings_sent: 0,
+          liquidations: 0
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
         }
+      );
+    }
 
-        // Create warning record
-        await supabaseClient
-          .from('margin_warnings')
-          .insert({
-            user_id: position.user_id,
-            position_id: position.id,
-            warning_type: 'liquidation',
-            margin_level: marginPercentage,
-            message: `Your short position in ${position.assets.symbol} has been liquidated due to insufficient margin (${(marginPercentage * 100).toFixed(2)}%).`,
-          });
+    const warnings: MarginWarning[] = [];
+    let liquidations = 0;
 
-        liquidations.push({
-          userId: position.user_id,
-          symbol: position.assets.symbol,
-          marginLevel: marginPercentage,
+    // Check each position for margin requirements
+    for (const position of positions as Position[]) {
+      if (!position.maintenance_margin || !position.initial_margin) {
+        continue; // Skip positions without margin data
+      }
+
+      // Calculate current margin level
+      const currentValue = position.quantity * position.assets.current_price;
+      const marginLevel = (position.maintenance_margin / currentValue) * 100;
+
+      // Check if position needs attention
+      if (marginLevel < 15) {
+        // Auto-liquidate position
+        await liquidatePosition(supabaseClient, position);
+        liquidations++;
+
+        // Create liquidation warning
+        warnings.push({
+          user_id: position.user_id,
+          position_id: position.id,
+          margin_level: marginLevel,
+          warning_type: 'liquidation',
+          message: `Position in ${position.assets.symbol} was automatically liquidated due to insufficient margin (${marginLevel.toFixed(2)}%)`
+        });
+      } else if (marginLevel < 18) {
+        // Send margin call warning
+        warnings.push({
+          user_id: position.user_id,
+          position_id: position.id,
+          margin_level: marginLevel,
+          warning_type: 'margin_call',
+          message: `Margin call for ${position.assets.symbol}: Margin level at ${marginLevel.toFixed(2)}%. Position will be liquidated if it falls below 15%.`
+        });
+      } else if (marginLevel < 20) {
+        // Send maintenance warning
+        warnings.push({
+          user_id: position.user_id,
+          position_id: position.id,
+          margin_level: marginLevel,
+          warning_type: 'maintenance_warning',
+          message: `Low margin warning for ${position.assets.symbol}: Margin level at ${marginLevel.toFixed(2)}%. Consider closing position or adding funds.`
         });
       }
-      // Check for warning (18% threshold)
-      else if (marginPercentage <= margins.warning) {
-        console.log(`MARGIN WARNING for position ${position.id}`);
+    }
 
-        // Check if warning already sent recently (within last hour)
-        const { data: recentWarnings } = await supabaseClient
-          .from('margin_warnings')
-          .select('*')
-          .eq('position_id', position.id)
-          .eq('warning_type', 'warning')
-          .gte('created_at', new Date(Date.now() - 3600000).toISOString());
+    // Insert warnings into database
+    if (warnings.length > 0) {
+      const { error: warningsError } = await supabaseClient
+        .from('margin_warnings')
+        .insert(warnings.map(warning => ({
+          ...warning,
+          created_at: new Date().toISOString()
+        })));
 
-        if (!recentWarnings || recentWarnings.length === 0) {
-          await supabaseClient
-            .from('margin_warnings')
-            .insert({
-              user_id: position.user_id,
-              position_id: position.id,
-              warning_type: 'warning',
-              margin_level: marginPercentage,
-              message: `WARNING: Your short position in ${position.assets.symbol} is approaching margin call. Current margin: ${(marginPercentage * 100).toFixed(2)}%. Maintenance margin: ${(margins.maintenance * 100)}%.`,
-            });
-
-          warnings.push({
-            userId: position.user_id,
-            symbol: position.assets.symbol,
-            marginLevel: marginPercentage,
-          });
-        }
+      if (warningsError) {
+        console.error('Error inserting warnings:', warningsError);
       }
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Margin check completed',
-        warnings: warnings.length,
-        liquidations: liquidations.length,
-        details: {
-          warnings,
-          liquidations,
-        },
+      JSON.stringify({ 
+        success: true, 
+        message: `Checked ${positions.length} short positions`,
+        warnings_sent: warnings.length,
+        liquidations: liquidations,
+        positions_checked: positions.length
       }),
-      {
+      { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 200 
       }
     );
 
   } catch (error) {
     console.error('Error in check-margins function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: errorMessage,
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
       }),
-      {
+      { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 500 
       }
     );
   }
 });
+
+async function liquidatePosition(supabaseClient: any, position: Position) {
+  try {
+    // Create a market order to cover the short position
+    const { error: orderError } = await supabaseClient
+      .from('orders')
+      .insert({
+        user_id: position.user_id,
+        asset_id: position.assets.symbol, // This should be asset_id, not symbol
+        order_type: 'market',
+        quantity: position.quantity,
+        price: position.assets.current_price,
+        status: 'executed',
+        executed_price: position.assets.current_price,
+        executed_at: new Date().toISOString(),
+        is_buy: true // Buy to cover short position
+      });
+
+    if (orderError) {
+      console.error('Error creating liquidation order:', orderError);
+      return;
+    }
+
+    // Delete the position
+    const { error: deleteError } = await supabaseClient
+      .from('positions')
+      .delete()
+      .eq('id', position.id);
+
+    if (deleteError) {
+      console.error('Error deleting liquidated position:', deleteError);
+    }
+
+    // Update portfolio cash balance (return margin + profit/loss)
+    const marginReturn = position.initial_margin || 0;
+    const profitLoss = position.quantity * (position.assets.current_price - (position.current_value / position.quantity));
+    const cashChange = marginReturn + profitLoss;
+
+    const { error: portfolioError } = await supabaseClient
+      .from('portfolios')
+      .update({
+        cash_balance: supabaseClient.raw(`cash_balance + ${cashChange}`),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', position.user_id);
+
+    if (portfolioError) {
+      console.error('Error updating portfolio after liquidation:', portfolioError);
+    }
+
+    console.log(`Liquidated position ${position.id} for user ${position.user_id}`);
+  } catch (error) {
+    console.error('Error liquidating position:', error);
+  }
+}

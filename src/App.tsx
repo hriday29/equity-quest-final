@@ -10,6 +10,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Messages from "./pages/Messages";
 import TransactionHistory from "./pages/TransactionHistory";
 import Admin from "./pages/Admin";
+import MarketAnalysis from "./pages/MarketAnalysis";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/market" element={<ProtectedRoute><MarketAnalysis /></ProtectedRoute>} />
           <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
           <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
           <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />

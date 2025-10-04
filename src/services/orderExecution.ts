@@ -33,7 +33,8 @@ export class OrderExecutionEngine {
     quantity: number,
     price: number | null,
     stopPrice: number | null,
-    isBuy: boolean
+    isBuy: boolean,
+    isShortSell: boolean = false
   ): Promise<OrderExecutionResult> {
     try {
       console.log('Executing order:', { userId, assetId, orderType, quantity, price, isBuy });
@@ -56,7 +57,8 @@ export class OrderExecutionEngine {
         assetId,
         quantity,
         price,
-        isBuy
+        isBuy,
+        isShortSell
       );
 
       if (!validationResult.valid) {
@@ -140,8 +142,8 @@ export class OrderExecutionEngine {
         }
       }
 
-      // 6. Check sufficient position for sell orders
-      if (!isBuy) {
+      // 6. Check sufficient position for sell orders (unless it's a short sell)
+      if (!isBuy && !isShortSell) {
         const { data: position } = await supabase
           .from('positions')
           .select('quantity')
@@ -164,12 +166,16 @@ export class OrderExecutionEngine {
         quantity,
         executionPrice,
         isBuy,
-        transactionCost
+        transactionCost,
+        isShortSell
       );
 
       if (executionResult.success) {
         // 8. Update portfolio values
         await this.updatePortfolioValues(userId);
+
+        // 9. Check for margin calls on short positions
+        await this.checkMarginCalls(userId);
 
         return {
           success: true,
@@ -194,7 +200,8 @@ export class OrderExecutionEngine {
     assetId: string,
     quantity: number,
     price: number | null,
-    isBuy: boolean
+    isBuy: boolean,
+    isShortSell: boolean = false
   ): Promise<{ valid: boolean; message: string }> {
     try {
       // Get current portfolio and positions
@@ -263,8 +270,8 @@ export class OrderExecutionEngine {
       }
 
       // Check short selling margin requirements
-      if (!isBuy && quantity > (currentPosition?.quantity || 0)) {
-        const shortQuantity = quantity - (currentPosition?.quantity || 0);
+      if (isShortSell || (!isBuy && quantity > (currentPosition?.quantity || 0))) {
+        const shortQuantity = isShortSell ? quantity : quantity - (currentPosition?.quantity || 0);
         const shortValue = shortQuantity * (price || asset.current_price);
         const requiredMargin = shortValue * this.constraints.shortSellingInitialMargin;
 
@@ -272,6 +279,20 @@ export class OrderExecutionEngine {
           return {
             valid: false,
             message: `Insufficient margin for short selling. Required: ₹${requiredMargin.toFixed(2)}`
+          };
+        }
+
+        // Check if short selling is allowed in current round
+        const { data: currentRound } = await supabase
+          .from('competition_rounds')
+          .select('round_number')
+          .eq('status', 'active')
+          .single();
+
+        if (currentRound && currentRound.round_number === 1) {
+          return {
+            valid: false,
+            message: 'Short selling is not allowed in Round 1'
           };
         }
       }
@@ -300,7 +321,8 @@ export class OrderExecutionEngine {
     quantity: number,
     executionPrice: number,
     isBuy: boolean,
-    transactionCost: number
+    transactionCost: number,
+    isShortSell: boolean = false
   ): Promise<OrderExecutionResult> {
     try {
       // Get current position
@@ -313,23 +335,56 @@ export class OrderExecutionEngine {
 
       const currentQuantity = currentPosition?.quantity || 0;
       const currentAveragePrice = currentPosition?.average_price || 0;
+      const isCurrentlyShort = currentPosition?.is_short || false;
 
       let newQuantity: number;
       let newAveragePrice: number;
+      let newIsShort: boolean;
 
       if (isBuy) {
-        newQuantity = currentQuantity + quantity;
-        if (currentQuantity > 0) {
-          // Calculate weighted average price
-          const currentValue = currentQuantity * currentAveragePrice;
-          const newValue = quantity * executionPrice;
-          newAveragePrice = (currentValue + newValue) / newQuantity;
+        if (isCurrentlyShort) {
+          // Covering short position
+          newQuantity = Math.max(0, currentQuantity - quantity);
+          newAveragePrice = currentAveragePrice;
+          newIsShort = newQuantity > 0;
         } else {
-          newAveragePrice = executionPrice;
+          // Regular buy
+          newQuantity = currentQuantity + quantity;
+          if (currentQuantity > 0) {
+            // Calculate weighted average price
+            const currentValue = currentQuantity * currentAveragePrice;
+            const newValue = quantity * executionPrice;
+            newAveragePrice = (currentValue + newValue) / newQuantity;
+          } else {
+            newAveragePrice = executionPrice;
+          }
+          newIsShort = false;
         }
       } else {
-        newQuantity = Math.max(0, currentQuantity - quantity);
-        newAveragePrice = currentAveragePrice; // Average price doesn't change on sell
+        if (isShortSell) {
+          // Opening short position
+          if (isCurrentlyShort) {
+            // Adding to short position
+            newQuantity = currentQuantity + quantity;
+            if (currentQuantity > 0) {
+              const currentValue = currentQuantity * currentAveragePrice;
+              const newValue = quantity * executionPrice;
+              newAveragePrice = (currentValue + newValue) / newQuantity;
+            } else {
+              newAveragePrice = executionPrice;
+            }
+          } else {
+            // New short position
+            newQuantity = quantity;
+            newAveragePrice = executionPrice;
+          }
+          newIsShort = true;
+        } else {
+          // Regular sell
+          newQuantity = Math.max(0, currentQuantity - quantity);
+          newAveragePrice = currentAveragePrice;
+          newIsShort = isCurrentlyShort;
+        }
       }
 
       // Update or create position
@@ -342,7 +397,10 @@ export class OrderExecutionEngine {
               quantity: newQuantity,
               average_price: newAveragePrice,
               current_value: newQuantity * executionPrice,
-              profit_loss: newQuantity * (executionPrice - newAveragePrice),
+              profit_loss: newQuantity * (newIsShort ? (newAveragePrice - executionPrice) : (executionPrice - newAveragePrice)),
+              is_short: newIsShort,
+              initial_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingInitialMargin : null,
+              maintenance_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingMaintenanceMargin : null,
               updated_at: new Date().toISOString()
             })
             .eq('id', currentPosition.id);
@@ -361,7 +419,10 @@ export class OrderExecutionEngine {
               quantity: newQuantity,
               average_price: newAveragePrice,
               current_value: newQuantity * executionPrice,
-              profit_loss: newQuantity * (executionPrice - newAveragePrice)
+              profit_loss: newQuantity * (newIsShort ? (newAveragePrice - executionPrice) : (executionPrice - newAveragePrice)),
+              is_short: newIsShort,
+              initial_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingInitialMargin : null,
+              maintenance_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingMaintenanceMargin : null
             });
 
           if (positionError) {
@@ -384,7 +445,26 @@ export class OrderExecutionEngine {
 
       // Update cash balance
       const totalValue = quantity * executionPrice;
-      const cashChange = isBuy ? -(totalValue + transactionCost) : (totalValue - transactionCost);
+      let cashChange: number;
+      
+      if (isBuy) {
+        if (isCurrentlyShort) {
+          // Covering short position - pay to buy back
+          cashChange = -(totalValue + transactionCost);
+        } else {
+          // Regular buy
+          cashChange = -(totalValue + transactionCost);
+        }
+      } else {
+        if (isShortSell) {
+          // Short sell - receive cash but need to set aside margin
+          const marginRequired = totalValue * this.constraints.shortSellingInitialMargin;
+          cashChange = totalValue - transactionCost - marginRequired;
+        } else {
+          // Regular sell
+          cashChange = totalValue - transactionCost;
+        }
+      }
 
       // Get current cash balance and update it
       const { data: currentPortfolio } = await supabase
@@ -524,6 +604,110 @@ export class OrderExecutionEngine {
       }
     } catch (error) {
       console.error('Portfolio update error:', error);
+    }
+  }
+
+  private async checkMarginCalls(userId: string): Promise<void> {
+    try {
+      // Get all short positions for the user
+      const { data: shortPositions } = await supabase
+        .from('positions')
+        .select('*, assets(*)')
+        .eq('user_id', userId)
+        .eq('is_short', true);
+
+      if (!shortPositions || shortPositions.length === 0) return;
+
+      // Get current portfolio value
+      const { data: portfolio } = await supabase
+        .from('portfolios')
+        .select('total_value, cash_balance')
+        .eq('user_id', userId)
+        .single();
+
+      if (!portfolio) return;
+
+      for (const position of shortPositions) {
+        const currentPrice = position.assets?.current_price || 0;
+        const positionValue = position.quantity * currentPrice;
+        const marginLevel = (portfolio.cash_balance / positionValue) * 100;
+
+        // Check if margin level is below maintenance margin (15%)
+        if (marginLevel < (this.constraints.shortSellingMaintenanceMargin * 100)) {
+          // Send margin warning at 18% or liquidate at 15%
+          if (marginLevel < 18 && marginLevel >= 15) {
+            // Send warning
+            await supabase
+              .from('margin_warnings')
+              .insert({
+                user_id: userId,
+                position_id: position.id,
+                margin_level: marginLevel,
+                warning_type: 'maintenance_warning',
+                message: `Margin level at ${marginLevel.toFixed(2)}%. Please add funds or close position.`
+              });
+          } else if (marginLevel < 15) {
+            // Auto-liquidate position
+            await this.liquidatePosition(userId, position.id, position.quantity, currentPrice);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Margin call check error:', error);
+    }
+  }
+
+  private async liquidatePosition(userId: string, positionId: string, quantity: number, currentPrice: number): Promise<void> {
+    try {
+      // Get the position to find the asset_id
+      const { data: position } = await supabase
+        .from('positions')
+        .select('asset_id')
+        .eq('id', positionId)
+        .single();
+
+      if (!position) return;
+
+      // Create a liquidation order (buy to cover short position)
+      const { error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: userId,
+          asset_id: position.asset_id,
+          order_type: 'market',
+          quantity: quantity,
+          price: currentPrice,
+          status: 'executed',
+          executed_price: currentPrice,
+          executed_at: new Date().toISOString(),
+          is_buy: true // Buy to cover short position
+        });
+
+      if (orderError) {
+        console.error('Liquidation order error:', orderError);
+        return;
+      }
+
+      // Delete the position
+      await supabase
+        .from('positions')
+        .delete()
+        .eq('id', positionId);
+
+      // Send liquidation notification
+      await supabase
+        .from('margin_warnings')
+        .insert({
+          user_id: userId,
+          position_id: positionId,
+          margin_level: 0,
+          warning_type: 'liquidation',
+          message: `Position automatically liquidated due to margin call.`
+        });
+
+      console.log(`Position ${positionId} liquidated for user ${userId}`);
+    } catch (error) {
+      console.error('Position liquidation error:', error);
     }
   }
 }

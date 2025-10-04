@@ -9,8 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings, DollarSign, Newspaper, Users, Play, Pause, Square, Clock, Zap, BarChart3, AlertTriangle, Target, TrendingUp } from "lucide-react";
+import { Settings, DollarSign, Newspaper, Users, Play, Pause, Square, Clock, Zap, BarChart3, AlertTriangle, Target, TrendingUp, Database, Shield, RotateCcw, Skull, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { nifty50Assets } from "@/data/nifty50Assets";
+import { competitionResetService, ResetOptions } from "@/services/competitionReset";
+import { simpleResetService } from "@/services/simpleReset";
+import { blackSwanEventService } from "@/services/blackSwanEvent";
 
 interface Asset {
   id: string;
@@ -59,6 +63,23 @@ const Admin = () => {
   const [roundStatus, setRoundStatus] = useState<string>("not_started");
   const [teamMonitoring, setTeamMonitoring] = useState<TeamMonitoring[]>([]);
   const [priceChangePercentage, setPriceChangePercentage] = useState("");
+  const [competitionStatus, setCompetitionStatus] = useState<any>(null);
+  const [blackSwanStatus, setBlackSwanStatus] = useState<any>(null);
+  const [resetOptions, setResetOptions] = useState<ResetOptions>({
+    resetPortfolios: true,
+    resetPositions: true,
+    resetOrders: true,
+    resetTransactions: true,
+    resetMessages: false,
+    resetMarginWarnings: true,
+    resetPortfolioHistory: true,
+    resetCompetitionEvents: true,
+    resetNews: false,
+    resetPriceHistory: false,
+    resetPriceFluctuations: true,
+    startingCash: 500000, // ₹5,00,000 default
+    resetRounds: false // Competition rounds are NOT reset - only user data is cleared
+  });
 
   useEffect(() => {
     fetchData();
@@ -76,7 +97,14 @@ const Admin = () => {
   }, []);
 
   const fetchData = async () => {
-    await Promise.all([fetchAssets(), fetchUsers(), fetchRoundStatus(), fetchTeamMonitoring()]);
+    await Promise.all([
+      fetchAssets(), 
+      fetchUsers(), 
+      fetchRoundStatus(), 
+      fetchTeamMonitoring(),
+      fetchCompetitionStatus(),
+      fetchBlackSwanStatus()
+    ]);
   };
 
   const fetchAssets = async () => {
@@ -169,6 +197,177 @@ const Admin = () => {
       }
     } catch (error) {
       console.error("Error initializing sample assets:", error);
+    }
+  };
+
+  const initializeNifty50Assets = async () => {
+    try {
+      // Check if NIFTY 50 assets already exist
+      const { data: existingAssets } = await supabase
+        .from("assets")
+        .select("symbol")
+        .in("symbol", nifty50Assets.map(a => a.symbol));
+
+      const existingSymbols = existingAssets?.map(a => a.symbol) || [];
+      const newAssets = nifty50Assets.filter(asset => !existingSymbols.includes(asset.symbol));
+
+      if (newAssets.length === 0) {
+        toast.info("All NIFTY 50 assets already exist!");
+        return;
+      }
+
+      // Prepare assets for insertion
+      const assetsToInsert = newAssets.map(asset => ({
+        symbol: asset.symbol,
+        name: asset.name,
+        asset_type: asset.symbol === "NIFTY" ? "index" as const : 
+                   ["GOLD", "SILVER", "CRUDE", "COPPER"].includes(asset.symbol) ? "commodity" as const : "stock" as const,
+        sector: asset.sector,
+        yfinance_ticker: asset.yfinance_ticker,
+        current_price: 100.00, // Placeholder - will be updated by yFinance fetch
+        previous_close: 100.00,
+        is_active: true
+      }));
+
+      const { error } = await supabase
+        .from("assets")
+        .insert(assetsToInsert);
+
+      if (error) {
+        console.error("Error initializing NIFTY 50 assets:", error);
+        toast.error("Failed to initialize NIFTY 50 assets");
+      } else {
+        toast.success(`Successfully added ${newAssets.length} NIFTY 50 assets!`);
+        fetchAssets(); // Refresh the assets list
+        
+        // Trigger yFinance data fetch
+        setTimeout(async () => {
+          try {
+            const { error: fetchError } = await supabase.functions.invoke('fetch-yfinance-data');
+            if (fetchError) {
+              console.error("Error fetching yFinance data:", fetchError);
+            } else {
+              toast.success("Real-time prices updated from yFinance!");
+            }
+          } catch (error) {
+            console.error("Error triggering yFinance fetch:", error);
+          }
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error initializing NIFTY 50 assets:", error);
+      toast.error("Failed to initialize NIFTY 50 assets");
+    }
+  };
+
+  const checkMargins = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('check-margins');
+      
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success(`Margin check completed: ${data.warnings_sent} warnings sent, ${data.liquidations} positions liquidated`);
+      } else {
+        toast.error(data.error || "Margin check failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to check margins");
+    }
+  };
+
+  const fetchCompetitionStatus = async () => {
+    try {
+      const status = await simpleResetService.getCompetitionStatus();
+      setCompetitionStatus(status);
+    } catch (error) {
+      console.error('Error fetching competition status:', error);
+    }
+  };
+
+  const fetchBlackSwanStatus = async () => {
+    try {
+      const status = await blackSwanEventService.getBlackSwanEventDetails();
+      setBlackSwanStatus(status);
+    } catch (error) {
+      console.error('Error fetching Black Swan status:', error);
+    }
+  };
+
+  const resetCompetition = async () => {
+    try {
+      const result = await simpleResetService.resetCompetition(resetOptions.startingCash);
+      
+      if (result.success) {
+        const details = result.details;
+        toast.success(`${result.message} - Reset ${details.portfoliosReset} portfolios, deleted ${details.positionsDeleted} positions, ${details.ordersDeleted} orders, ${details.transactionsDeleted} transactions, ${details.marginWarningsDeleted} margin warnings, ${details.portfolioHistoryDeleted} portfolio history records, ${details.competitionEventsDeleted} events, ${details.priceFluctuationsDeleted} price fluctuations`);
+        fetchAssets();
+        fetchCompetitionStatus();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reset competition");
+    }
+  };
+
+  const startCompetition = async () => {
+    try {
+      const result = await competitionResetService.startCompetition();
+      
+      if (result.success) {
+        toast.success(result.message);
+        fetchCompetitionStatus();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to start competition");
+    }
+  };
+
+  const advanceRound = async () => {
+    try {
+      const result = await competitionResetService.advanceToNextRound();
+      
+      if (result.success) {
+        toast.success(result.message);
+        fetchCompetitionStatus();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to advance round");
+    }
+  };
+
+  const triggerBlackSwan = async () => {
+    try {
+      const result = await blackSwanEventService.triggerBlackSwanEvent();
+      
+      if (result.success) {
+        toast.success(result.message);
+        fetchBlackSwanStatus();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to trigger Black Swan event");
+    }
+  };
+
+  const cancelBlackSwan = async () => {
+    try {
+      const result = await blackSwanEventService.cancelBlackSwanEvent();
+      
+      if (result.success) {
+        toast.success(result.message);
+        fetchBlackSwanStatus();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to cancel Black Swan event");
     }
   };
 
@@ -309,87 +508,200 @@ const Admin = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
-      switch (eventType) {
-        case 'telecom_shakeup':
-          // Telecom sector shake-up: Reduce telecom stocks by 15%
-          const telecomAssets = assets.filter(a => a.sector === 'Telecom');
-          for (const asset of telecomAssets) {
-            const newPrice = asset.current_price * 0.85;
-            await supabase
-              .from("assets")
-              .update({ 
-                current_price: newPrice,
-                updated_at: new Date().toISOString()
-              })
-              .eq("id", asset.id);
-          }
-          
-          // Publish news
-          await supabase.from("news").insert({
-            title: "Telecom Sector Shake-up",
-            content: "Major regulatory changes impact telecom companies. Stock prices drop significantly across the sector.",
-            category: "Market Alert",
-            published_by: session?.user.id,
-            is_public: true,
-          });
-          break;
-
-        case 'it_whiplash':
-          // IT sector whiplash: Increase IT stocks by 20%
-          const itAssets = assets.filter(a => a.sector === 'IT');
-          for (const asset of itAssets) {
-            const newPrice = asset.current_price * 1.20;
-            await supabase
-              .from("assets")
-              .update({ 
-                current_price: newPrice,
-                updated_at: new Date().toISOString()
-              })
-              .eq("id", asset.id);
-          }
-          
-          // Publish news
-          await supabase.from("news").insert({
-            title: "IT Sector Surge",
-            content: "Major tech breakthrough drives IT stocks higher. Companies report strong quarterly earnings.",
-            category: "Market Alert",
-            published_by: session?.user.id,
-            is_public: true,
-          });
-          break;
-
-        case 'black_swan':
-          // Black swan event: Reduce all stocks by 25%
-          for (const asset of assets) {
-            const newPrice = asset.current_price * 0.75;
-            await supabase
-              .from("assets")
-              .update({ 
-                current_price: newPrice,
-                updated_at: new Date().toISOString()
-              })
-              .eq("id", asset.id);
-          }
-          
-          // Publish news
-          await supabase.from("news").insert({
-            title: "Black Swan Event",
-            content: "Unexpected global event causes market-wide selloff. All sectors affected by sudden market correction.",
-            category: "Market Crisis",
-            published_by: session?.user.id,
-            is_public: true,
-          });
-          break;
-
-        default:
-          throw new Error("Unknown event type");
+      // Create event in competition_events table first
+      const eventData = getEventData(eventType);
+      if (!eventData) {
+        throw new Error("Unknown event type");
       }
 
-      toast.success(`${eventType.replace('_', ' ').toUpperCase()} event triggered successfully!`);
+      // Insert event into database
+      const { data: event, error: eventError } = await supabase
+        .from('competition_events')
+        .insert({
+          event_name: eventData.name,
+          event_number: eventData.number,
+          event_type: eventData.type,
+          headline: eventData.headline,
+          mechanics: eventData.mechanics,
+          round_number: eventData.round,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+
+      // Execute the event using Edge Function
+      const { data: executeResult, error: executeError } = await supabase.functions.invoke('execute-event', {
+        body: { eventId: event.id }
+      });
+
+      if (executeError) throw executeError;
+
+      // Publish news
+      await supabase.from("news").insert({
+        title: eventData.headline,
+        content: eventData.content,
+        category: eventData.category,
+        published_by: session?.user.id,
+        is_public: true,
+      });
+
+      toast.success(`${eventData.name} event triggered successfully!`);
       fetchAssets();
     } catch (error: any) {
       toast.error(error.message || "Failed to trigger event");
     }
+  };
+
+  const getEventData = (eventType: string) => {
+    const events = {
+      'event1_telecom_shakeup': {
+        name: "Telecom Sector Shake-up",
+        number: 1,
+        type: "sector_impact",
+        headline: "Telecom Sector Shake-up: Regulatory Changes Impact",
+        content: "Major regulatory changes impact telecom companies. Stock prices drop significantly across the sector as new compliance requirements increase operational costs.",
+        category: "Market Alert",
+        round: 1,
+        mechanics: {
+          affected_assets: ["BHARTI", "JIO", "VODAFONE"],
+          open_gap: -0.15,
+          drift: -0.05,
+          drift_duration: 20
+        }
+      },
+      'event2_banking_divergence': {
+        name: "Banking Asset Quality Divergence",
+        number: 2,
+        type: "sector_impact",
+        headline: "Banking Sector: Asset Quality Concerns Emerge",
+        content: "Diverging asset quality reports across major banks create uncertainty. Some banks show deteriorating loan portfolios while others maintain stability.",
+        category: "Market Alert",
+        round: 1,
+        mechanics: {
+          affected_assets: ["HDFC", "ICICI", "SBI", "AXIS"],
+          open_gap: -0.08,
+          drift: -0.03,
+          drift_duration: 20
+        }
+      },
+      'event3_global_cues_it': {
+        name: "Global Cues & IT Whiplash",
+        number: 3,
+        type: "global_impact",
+        headline: "Global Tech Rally Drives IT Sector Surge",
+        content: "Strong global tech earnings and positive market sentiment drive IT stocks higher. Major tech companies report better-than-expected quarterly results.",
+        category: "Market Alert",
+        round: 2,
+        mechanics: {
+          affected_assets: ["TCS", "INFY", "WIPRO", "HCL"],
+          open_gap: 0.12,
+          drift: 0.08,
+          drift_duration: 30,
+          catalyst: {
+            at_minute: 15,
+            change: 0.05
+          }
+        }
+      },
+      'event4_commodity_supercycle': {
+        name: "Commodity Supercycle Rumor",
+        number: 4,
+        type: "commodity_impact",
+        headline: "Commodity Supercycle Rumors Surface",
+        content: "Insider reports suggest a potential commodity supercycle. However, conflicting information creates market confusion about the actual impact.",
+        category: "Market Alert",
+        round: 2,
+        mechanics: {
+          affected_assets: ["GOLD", "SILVER", "COPPER", "STEEL"],
+          open_gap: 0.10,
+          drift: 0.06,
+          drift_duration: 30,
+          special: "conflicting_info"
+        }
+      },
+      'event5_red_herring': {
+        name: "Red Herring Corporate Action",
+        number: 5,
+        type: "corporate_action",
+        headline: "Major Corporate Restructuring Announced",
+        content: "Several companies announce significant corporate restructuring plans. Market analysts are divided on the potential impact of these changes.",
+        category: "Corporate News",
+        round: 2,
+        mechanics: {
+          affected_assets: ["RELIANCE", "TATA", "ADANI"],
+          open_gap: 0,
+          drift: 0,
+          drift_duration: 0,
+          special: "red_herring"
+        }
+      },
+      'event6_rbi_policy': {
+        name: "RBI Policy Shock",
+        number: 6,
+        type: "policy_impact",
+        headline: "RBI Announces Unexpected Policy Changes",
+        content: "Reserve Bank of India announces unexpected monetary policy changes that catch markets off-guard. Interest rate adjustments impact various sectors differently.",
+        category: "Policy Alert",
+        round: 3,
+        mechanics: {
+          affected_assets: ["HDFC", "ICICI", "SBI", "AXIS", "RELIANCE", "TCS"],
+          open_gap: -0.12,
+          drift: -0.08,
+          drift_duration: 30
+        }
+      },
+      'event7_geopolitical': {
+        name: "Geopolitical Flare-up",
+        number: 7,
+        type: "geopolitical",
+        headline: "Geopolitical Tensions Escalate",
+        content: "Escalating geopolitical tensions create market uncertainty. Defense and energy sectors see increased volatility as global markets react.",
+        category: "Geopolitical Alert",
+        round: 3,
+        mechanics: {
+          affected_assets: ["RELIANCE", "ONGC", "COAL", "DEFENSE"],
+          open_gap: -0.10,
+          drift: -0.06,
+          drift_duration: 30
+        }
+      },
+      'event8_policy_rumor': {
+        name: "Evolving Policy Rumor",
+        number: 8,
+        type: "policy_evolution",
+        headline: "Policy Rumor Update: Partial Reversal",
+        content: "Initial policy rumors are partially reversed as more information becomes available. Market reacts to the evolving situation with mixed signals.",
+        category: "Policy Update",
+        round: 3,
+        mechanics: {
+          affected_assets: ["RELIANCE", "TCS", "HDFC", "INFY"],
+          open_gap: -0.08,
+          drift: 0.04,
+          drift_duration: 30,
+          special: "partial_reversal"
+        }
+      },
+      'event9_black_swan': {
+        name: "THE BLACK SWAN",
+        number: 9,
+        type: "black_swan",
+        headline: "BLACK SWAN EVENT: Market Crisis",
+        content: "Unprecedented market crisis unfolds with trading halt. All sectors affected by sudden market correction. Blue-chip stocks show partial recovery after initial crash.",
+        category: "Market Crisis",
+        round: 3,
+        mechanics: {
+          affected_assets: ["ALL_STOCKS"],
+          open_gap: -0.08,
+          drift: 0,
+          drift_duration: 0,
+          special: "black_swan"
+        }
+      }
+    };
+
+    return events[eventType as keyof typeof events];
   };
 
   const handlePublishNews = async () => {
@@ -590,7 +902,7 @@ const Admin = () => {
         </Card>
 
         <Tabs defaultValue="prices" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="prices">
               <DollarSign className="h-4 w-4 mr-2" />
               Prices
@@ -614,6 +926,14 @@ const Admin = () => {
             <TabsTrigger value="activity">
               <Settings className="h-4 w-4 mr-2" />
               Activity
+            </TabsTrigger>
+            <TabsTrigger value="competition">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Competition
+            </TabsTrigger>
+            <TabsTrigger value="blackswan">
+              <Skull className="h-4 w-4 mr-2" />
+              Black Swan
             </TabsTrigger>
           </TabsList>
 
@@ -804,44 +1124,130 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="events">
-            <Card className="card-enhanced">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  Event Macro Triggers
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Button 
-                    onClick={() => handleEventMacro('telecom_shakeup')}
-                    className="h-24 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
-                  >
-                    <AlertTriangle className="h-6 w-6" />
-                    <span className="font-semibold">Telecom Shake-up</span>
-                    <span className="text-xs opacity-90">-15% Telecom</span>
-                  </Button>
+            <div className="space-y-6">
+              {/* Round 1 Events */}
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    Round 1: The Fundamentals Floor (20 Mins)
+                    <Badge variant="secondary" className="ml-auto">No Shorting</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Button 
+                      onClick={() => handleEventMacro('event1_telecom_shakeup')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 1: Telecom Shake-up</span>
+                      <span className="text-xs opacity-90">-15% Telecom</span>
+                    </Button>
 
-                  <Button 
-                    onClick={() => handleEventMacro('it_whiplash')}
-                    className="h-24 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
-                  >
-                    <TrendingUp className="h-6 w-6" />
-                    <span className="font-semibold">IT Whiplash</span>
-                    <span className="text-xs opacity-90">+20% IT</span>
-                  </Button>
+                    <Button 
+                      onClick={() => handleEventMacro('event2_banking_divergence')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 2: Banking Divergence</span>
+                      <span className="text-xs opacity-90">-8% Banking</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
-                  <Button 
-                    onClick={() => handleEventMacro('black_swan')}
-                    className="h-24 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"
-                  >
-                    <AlertTriangle className="h-6 w-6" />
-                    <span className="font-semibold">Black Swan</span>
-                    <span className="text-xs opacity-90">-25% All</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              {/* Round 2 Events */}
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    Round 2: The Fog of War (30 Mins)
+                    <Badge variant="default" className="ml-auto">Shorting Enabled</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Button 
+                      onClick={() => handleEventMacro('event3_global_cues_it')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                    >
+                      <TrendingUp className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 3: IT Whiplash</span>
+                      <span className="text-xs opacity-90">+12% IT + Catalyst</span>
+                    </Button>
+
+                    <Button 
+                      onClick={() => handleEventMacro('event4_commodity_supercycle')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 4: Commodity Cycle</span>
+                      <span className="text-xs opacity-90">+10% + Conflicting Info</span>
+                    </Button>
+
+                    <Button 
+                      onClick={() => handleEventMacro('event5_red_herring')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 5: Red Herring</span>
+                      <span className="text-xs opacity-90">No Impact (Test)</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Round 3 Events */}
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    Round 3: The Macro Meltdown (30 Mins)
+                    <Badge variant="destructive" className="ml-auto">High Volatility</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <Button 
+                      onClick={() => handleEventMacro('event6_rbi_policy')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 6: RBI Policy</span>
+                      <span className="text-xs opacity-90">-12% Policy Shock</span>
+                    </Button>
+
+                    <Button 
+                      onClick={() => handleEventMacro('event7_geopolitical')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 7: Geopolitical</span>
+                      <span className="text-xs opacity-90">-10% Tensions</span>
+                    </Button>
+
+                    <Button 
+                      onClick={() => handleEventMacro('event8_policy_rumor')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Event 8: Policy Rumor</span>
+                      <span className="text-xs opacity-90">-8% + Reversal</span>
+                    </Button>
+
+                    <Button 
+                      onClick={() => handleEventMacro('event9_black_swan')}
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-black to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white border-2 border-red-500"
+                    >
+                      <AlertTriangle className="h-5 w-5 text-red-400" />
+                      <span className="font-semibold text-sm">Event 9: BLACK SWAN</span>
+                      <span className="text-xs opacity-90 text-red-300">-8% + Trading Halt</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="monitoring">
@@ -920,30 +1326,320 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="activity">
-            <Card className="card-enhanced">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-primary" />
-                  User Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {users.map((user, index) => (
-                    <div key={user.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 transition-colors animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
-                      <div>
-                        <p className="font-medium">{user.full_name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
-                        {user.team_code && (
-                          <p className="text-xs text-muted-foreground">Team: {user.team_code}</p>
-                        )}
+            <div className="space-y-6">
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-primary" />
+                    Database Management
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Button 
+                      onClick={initializeNifty50Assets}
+                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                    >
+                      <Database className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Initialize NIFTY 50</span>
+                      <span className="text-xs opacity-90">Add all 50 stocks + commodities</span>
+                    </Button>
+
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          const { error } = await supabase.functions.invoke('fetch-yfinance-data');
+                          if (error) throw error;
+                          toast.success("Real-time prices updated from yFinance!");
+                        } catch (error) {
+                          toast.error("Failed to fetch yFinance data");
+                        }
+                      }}
+                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                    >
+                      <TrendingUp className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Fetch Live Prices</span>
+                      <span className="text-xs opacity-90">Update from yFinance API</span>
+                    </Button>
+                    <Button 
+                      onClick={checkMargins}
+                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                    >
+                      <Shield className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Check Margins</span>
+                      <span className="text-xs opacity-90">Monitor short positions</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-primary" />
+                    User Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {users.map((user, index) => (
+                      <div key={user.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 transition-colors animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
+                        <div>
+                          <p className="font-medium">{user.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                          {user.team_code && (
+                            <p className="text-xs text-muted-foreground">Team: {user.team_code}</p>
+                          )}
+                        </div>
+                        <Badge variant="default" className="badge-executed">Active</Badge>
                       </div>
-                      <Badge variant="default" className="badge-executed">Active</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="competition">
+            <div className="space-y-6">
+              {/* Competition Status */}
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-primary" />
+                    Competition Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {competitionStatus ? (
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-primary">{competitionStatus.totalParticipants}</p>
+                        <p className="text-sm text-muted-foreground">Participants</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-green-600">
+                          ₹{competitionStatus.totalPortfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-blue-600">{competitionStatus.currentRound || 'Not Started'}</p>
+                        <p className="text-sm text-muted-foreground">Current Round</p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  ) : (
+                    <p className="text-center text-muted-foreground">Loading competition status...</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Competition Control */}
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <RotateCcw className="h-5 w-5 text-primary" />
+                    Competition Control
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Button 
+                      onClick={startCompetition}
+                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                    >
+                      <Play className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Start Competition</span>
+                      <span className="text-xs opacity-90">Begin Round 1</span>
+                    </Button>
+                    <Button 
+                      onClick={advanceRound}
+                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                    >
+                      <RefreshCw className="h-5 w-5" />
+                      <span className="font-semibold text-sm">Advance Round</span>
+                      <span className="text-xs opacity-90">Next round</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Competition Reset */}
+              <Card className="card-enhanced border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-red-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    Competition Reset
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label>Starting Cash Amount</Label>
+                        <Input
+                          type="number"
+                          value={resetOptions.startingCash}
+                          onChange={(e) => setResetOptions({...resetOptions, startingCash: parseInt(e.target.value) || 100000})}
+                          placeholder="100000"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button 
+                          onClick={resetCompetition}
+                          variant="destructive"
+                          className="w-full h-12"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Reset Competition
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={resetOptions.resetPortfolios}
+                          onChange={(e) => setResetOptions({...resetOptions, resetPortfolios: e.target.checked})}
+                        />
+                        <span className="text-sm">Reset Portfolios</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={resetOptions.resetPositions}
+                          onChange={(e) => setResetOptions({...resetOptions, resetPositions: e.target.checked})}
+                        />
+                        <span className="text-sm">Reset Positions</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={resetOptions.resetOrders}
+                          onChange={(e) => setResetOptions({...resetOptions, resetOrders: e.target.checked})}
+                        />
+                        <span className="text-sm">Reset Orders</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={resetOptions.resetMessages}
+                          onChange={(e) => setResetOptions({...resetOptions, resetMessages: e.target.checked})}
+                        />
+                        <span className="text-sm">Reset Messages</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={resetOptions.resetNews}
+                          onChange={(e) => setResetOptions({...resetOptions, resetNews: e.target.checked})}
+                        />
+                        <span className="text-sm">Reset News</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={resetOptions.resetRounds}
+                          onChange={(e) => setResetOptions({...resetOptions, resetRounds: e.target.checked})}
+                        />
+                        <span className="text-sm">Reset Rounds</span>
+                      </label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="blackswan">
+            <div className="space-y-6">
+              {/* Black Swan Status */}
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Skull className="h-5 w-5 text-primary" />
+                    Black Swan Event Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {blackSwanStatus ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Event Status</p>
+                          <Badge variant={blackSwanStatus.isActive ? "destructive" : "secondary"}>
+                            {blackSwanStatus.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Trading Status</p>
+                          <Badge variant={blackSwanStatus.tradingHalted ? "destructive" : "default"}>
+                            {blackSwanStatus.tradingHalted ? "Halted" : "Active"}
+                          </Badge>
+                        </div>
+                      </div>
+                      {blackSwanStatus.tradingHalted && blackSwanStatus.haltEndTime && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-800">
+                            Trading will resume at: {new Date(blackSwanStatus.haltEndTime).toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground">No Black Swan event active</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Black Swan Controls */}
+              <Card className="card-enhanced border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-red-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    Black Swan Event Controls
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <h4 className="font-semibold text-red-800 mb-2">⚠️ Black Swan Event Mechanics</h4>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        <li>• Triggers -8% market crash across all assets</li>
+                        <li>• Trading halt for 90 seconds (1.5 minutes)</li>
+                        <li>• Blue-chip stocks (Reliance, HUL, Infosys) recover +2%</li>
+                        <li>• Other stocks remain at -8% crash level</li>
+                        <li>• Tests risk management in extreme conditions</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Button 
+                        onClick={triggerBlackSwan}
+                        variant="destructive"
+                        className="h-16 flex flex-col items-center justify-center gap-2"
+                        disabled={blackSwanStatus?.isActive}
+                      >
+                        <Skull className="h-5 w-5" />
+                        <span className="font-semibold text-sm">Trigger Black Swan</span>
+                        <span className="text-xs opacity-90">Market crash + halt</span>
+                      </Button>
+                      <Button 
+                        onClick={cancelBlackSwan}
+                        variant="outline"
+                        className="h-16 flex flex-col items-center justify-center gap-2 border-red-300 text-red-600 hover:bg-red-50"
+                        disabled={!blackSwanStatus?.isActive}
+                      >
+                        <AlertTriangle className="h-5 w-5" />
+                        <span className="font-semibold text-sm">Cancel Event</span>
+                        <span className="text-xs opacity-90">Emergency stop</span>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
