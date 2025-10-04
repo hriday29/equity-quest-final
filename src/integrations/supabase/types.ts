@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_read: boolean | null
+          replied_at: string | null
+          reply_content: string | null
+          sender_id: string
+          subject: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          replied_at?: string | null
+          reply_content?: string | null
+          sender_id: string
+          subject: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          replied_at?: string | null
+          reply_content?: string | null
+          sender_id?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           asset_type: Database["public"]["Enums"]["asset_type"]
@@ -21,11 +54,16 @@ export type Database = {
           current_price: number
           id: string
           is_active: boolean
+          market_cap: number | null
           name: string
+          pe_ratio: number | null
           previous_close: number | null
           sector: string | null
           symbol: string
           updated_at: string
+          week_52_high: number | null
+          week_52_low: number | null
+          yfinance_ticker: string | null
         }
         Insert: {
           asset_type: Database["public"]["Enums"]["asset_type"]
@@ -33,11 +71,16 @@ export type Database = {
           current_price?: number
           id?: string
           is_active?: boolean
+          market_cap?: number | null
           name: string
+          pe_ratio?: number | null
           previous_close?: number | null
           sector?: string | null
           symbol: string
           updated_at?: string
+          week_52_high?: number | null
+          week_52_low?: number | null
+          yfinance_ticker?: string | null
         }
         Update: {
           asset_type?: Database["public"]["Enums"]["asset_type"]
@@ -45,11 +88,61 @@ export type Database = {
           current_price?: number
           id?: string
           is_active?: boolean
+          market_cap?: number | null
           name?: string
+          pe_ratio?: number | null
           previous_close?: number | null
           sector?: string | null
           symbol?: string
           updated_at?: string
+          week_52_high?: number | null
+          week_52_low?: number | null
+          yfinance_ticker?: string | null
+        }
+        Relationships: []
+      }
+      competition_events: {
+        Row: {
+          created_at: string
+          event_name: string
+          event_number: number
+          event_type: string
+          executed_at: string | null
+          executed_by: string | null
+          headline: string
+          id: string
+          mechanics: Json
+          round_number: number
+          scheduled_at: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_name: string
+          event_number: number
+          event_type: string
+          executed_at?: string | null
+          executed_by?: string | null
+          headline: string
+          id?: string
+          mechanics: Json
+          round_number: number
+          scheduled_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          event_number?: number
+          event_type?: string
+          executed_at?: string | null
+          executed_by?: string | null
+          headline?: string
+          id?: string
+          mechanics?: Json
+          round_number?: number
+          scheduled_at?: string | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -85,6 +178,103 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      competition_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      financial_metrics: {
+        Row: {
+          asset_id: string
+          created_at: string
+          data: Json
+          fetched_at: string
+          id: string
+          metric_type: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          data: Json
+          fetched_at?: string
+          id?: string
+          metric_type: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          data?: Json
+          fetched_at?: string
+          id?: string
+          metric_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_metrics_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      margin_warnings: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean | null
+          margin_level: number
+          message: string
+          position_id: string | null
+          user_id: string
+          warning_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          margin_level: number
+          message: string
+          position_id?: string | null
+          user_id: string
+          warning_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          margin_level?: number
+          message?: string
+          position_id?: string | null
+          user_id?: string
+          warning_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "margin_warnings_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -232,6 +422,36 @@ export type Database = {
           },
         ]
       }
+      portfolio_history: {
+        Row: {
+          cash_balance: number
+          id: string
+          profit_loss: number
+          recorded_at: string
+          team_code: string | null
+          total_value: number
+          user_id: string
+        }
+        Insert: {
+          cash_balance: number
+          id?: string
+          profit_loss: number
+          recorded_at?: string
+          team_code?: string | null
+          total_value: number
+          user_id: string
+        }
+        Update: {
+          cash_balance?: number
+          id?: string
+          profit_loss?: number
+          recorded_at?: string
+          team_code?: string | null
+          total_value?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       portfolios: {
         Row: {
           cash_balance: number
@@ -277,9 +497,13 @@ export type Database = {
         Row: {
           asset_id: string
           average_price: number
+          borrowing_cost: number | null
           created_at: string
           current_value: number
           id: string
+          initial_margin: number | null
+          is_short: boolean | null
+          maintenance_margin: number | null
           profit_loss: number
           quantity: number
           updated_at: string
@@ -288,9 +512,13 @@ export type Database = {
         Insert: {
           asset_id: string
           average_price: number
+          borrowing_cost?: number | null
           created_at?: string
           current_value?: number
           id?: string
+          initial_margin?: number | null
+          is_short?: boolean | null
+          maintenance_margin?: number | null
           profit_loss?: number
           quantity?: number
           updated_at?: string
@@ -299,9 +527,13 @@ export type Database = {
         Update: {
           asset_id?: string
           average_price?: number
+          borrowing_cost?: number | null
           created_at?: string
           current_value?: number
           id?: string
+          initial_margin?: number | null
+          is_short?: boolean | null
+          maintenance_margin?: number | null
           profit_loss?: number
           quantity?: number
           updated_at?: string
@@ -320,6 +552,54 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_fluctuation_log: {
+        Row: {
+          asset_id: string
+          change_percentage: number
+          created_at: string
+          event_id: string | null
+          fluctuation_type: string
+          id: string
+          new_price: number
+          old_price: number
+        }
+        Insert: {
+          asset_id: string
+          change_percentage: number
+          created_at?: string
+          event_id?: string | null
+          fluctuation_type: string
+          id?: string
+          new_price: number
+          old_price: number
+        }
+        Update: {
+          asset_id?: string
+          change_percentage?: number
+          created_at?: string
+          event_id?: string | null
+          fluctuation_type?: string
+          id?: string
+          new_price?: number
+          old_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_fluctuation_log_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_fluctuation_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "competition_events"
             referencedColumns: ["id"]
           },
         ]
@@ -369,7 +649,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
-          team_name: string | null
+          team_code: string | null
           updated_at: string
         }
         Insert: {
@@ -377,7 +657,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
-          team_name?: string | null
+          team_code?: string | null
           updated_at?: string
         }
         Update: {
@@ -385,10 +665,78 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
-          team_name?: string | null
+          team_code?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      team_codes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          max_members: number | null
+          team_name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          max_members?: number | null
+          team_name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          max_members?: number | null
+          team_name?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          asset_id: string
+          created_at: string
+          fees: number | null
+          id: string
+          price: number
+          quantity: number
+          total_value: number
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          fees?: number | null
+          id?: string
+          price: number
+          quantity: number
+          total_value: number
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          fees?: number | null
+          id?: string
+          price?: number
+          quantity?: number
+          total_value?: number
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -434,6 +782,10 @@ export type Database = {
       is_admin_or_owner: {
         Args: { _user_id: string }
         Returns: boolean
+      }
+      reset_competition: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {

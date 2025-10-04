@@ -13,7 +13,7 @@ interface LeaderboardEntry {
   profit_loss_percentage: number;
   profiles: {
     full_name: string;
-    team_name: string | null;
+    team_code: string | null;
   };
 }
 
@@ -49,13 +49,13 @@ const Leaderboard = () => {
       setCurrentUserId(session.user.id);
     }
 
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from("portfolios")
       .select(`
         *,
         profiles (
           full_name,
-          team_name
+          team_code
         )
       `)
       .order("total_value", { ascending: false });
@@ -76,7 +76,7 @@ const Leaderboard = () => {
     }>();
 
     data?.forEach(entry => {
-      const teamName = entry.profiles.team_name || `Individual - ${entry.profiles.full_name}`;
+      const teamName = entry.profiles.team_code || `Individual - ${entry.profiles.full_name}`;
       
       if (!teamMap.has(teamName)) {
         teamMap.set(teamName, {

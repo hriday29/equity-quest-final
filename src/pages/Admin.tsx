@@ -25,13 +25,13 @@ interface User {
   id: string;
   full_name: string;
   email: string;
-  team_name: string | null;
+  team_code: string | null;
 }
 
 interface TeamMonitoring {
   user_id: string;
   full_name: string;
-  team_name: string | null;
+  team_code: string | null;
   total_value: number;
   cash_balance: number;
   profit_loss: number;
@@ -90,7 +90,7 @@ const Admin = () => {
   const fetchUsers = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, team_code, email")
       .order("full_name");
     setUsers(data || []);
   };
@@ -181,7 +181,7 @@ const Admin = () => {
           *,
           profiles (
             full_name,
-            team_name
+            team_code
           )
         `)
         .order("total_value", { ascending: false });
@@ -208,7 +208,7 @@ const Admin = () => {
         teamData.push({
           user_id: portfolio.user_id,
           full_name: portfolio.profiles?.full_name || "Unknown",
-          team_name: portfolio.profiles?.team_name || null,
+          team_code: portfolio.profiles?.team_code || null,
           total_value: portfolio.total_value,
           cash_balance: portfolio.cash_balance,
           profit_loss: portfolio.profit_loss,
@@ -769,7 +769,7 @@ const Admin = () => {
                     <SelectContent>
                       {users.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.full_name} ({user.team_name || "No team"})
+                          {user.full_name} ({user.team_code || "No team"})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -857,10 +857,10 @@ const Admin = () => {
                   {teamMonitoring.map((team, index) => (
                     <div key={team.user_id} className="border border-border rounded-lg p-4 animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
                       <div className="flex items-center justify-between mb-3">
-                        <div>
+                      <div>
                           <h3 className="font-bold text-lg">{team.full_name}</h3>
-                          {team.team_name && (
-                            <p className="text-sm text-muted-foreground">Team: {team.team_name}</p>
+                          {team.team_code && (
+                            <p className="text-sm text-muted-foreground">Team: {team.team_code}</p>
                           )}
                         </div>
                         <div className="text-right">
@@ -934,8 +934,8 @@ const Admin = () => {
                       <div>
                         <p className="font-medium">{user.full_name}</p>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
-                        {user.team_name && (
-                          <p className="text-xs text-muted-foreground">Team: {user.team_name}</p>
+                        {user.team_code && (
+                          <p className="text-xs text-muted-foreground">Team: {user.team_code}</p>
                         )}
                       </div>
                       <Badge variant="default" className="badge-executed">Active</Badge>
