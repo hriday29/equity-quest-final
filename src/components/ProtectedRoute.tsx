@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { useUser } from "@/contexts/UserContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -9,47 +7,9 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [hasRequiredRole, setHasRequiredRole] = useState(false);
+  const { user, isLoading, hasRole } = useUser();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-
-      if (session?.user && requireRole) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id);
-
-        const userRoles = roles?.map(r => r.role) || [];
-        
-        if (requireRole === "owner") {
-          setHasRequiredRole(userRoles.includes("owner"));
-        } else if (requireRole === "admin") {
-          setHasRequiredRole(userRoles.includes("admin") || userRoles.includes("owner"));
-        } else {
-          setHasRequiredRole(true);
-        }
-      } else {
-        setHasRequiredRole(true);
-      }
-
-      setLoading(false);
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [requireRole]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -64,7 +24,7 @@ const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) => {
     return <Navigate to="/auth" replace />;
   }
 
-  if (requireRole && !hasRequiredRole) {
+  if (requireRole && !hasRole(requireRole)) {
     return <Navigate to="/dashboard" replace />;
   }
 
