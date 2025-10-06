@@ -47,7 +47,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const loadUserData = async (userId: string) => {
     try {
-      // Load profile and roles in parallel
+      // Load profile and roles in parallel for better performance
       const [profileResult, rolesResult] = await Promise.all([
         supabase
           .from('profiles')
@@ -60,19 +60,34 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           .eq('user_id', userId)
       ]);
 
-      if (profileResult.error) {
-        console.error('Error loading profile:', profileResult.error);
-      } else {
+      // Set profile data with fallbacks
+      if (profileResult.data) {
         setProfile(profileResult.data);
+      } else {
+        console.error('Error loading profile:', profileResult.error);
+        setProfile({
+          id: userId,
+          full_name: 'User',
+          email: '',
+        });
       }
 
-      if (rolesResult.error) {
-        console.error('Error loading roles:', rolesResult.error);
+      // Set roles data with fallbacks
+      if (rolesResult.data && rolesResult.data.length > 0) {
+        setRoles(rolesResult.data);
       } else {
-        setRoles(rolesResult.data || []);
+        console.error('Error loading roles:', rolesResult.error);
+        setRoles([{ id: userId, role: 'user' }]);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      // Set default values to prevent infinite loading
+      setProfile({
+        id: userId,
+        full_name: 'User',
+        email: '',
+      });
+      setRoles([{ id: userId, role: 'user' }]);
     }
   };
 
@@ -87,12 +102,21 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.warn('Auth initialization timeout - setting loading to false');
+            setIsLoading(false);
+          }
+        }, 5000); // 5 second timeout
+
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
           if (mounted) {
+            clearTimeout(timeoutId);
             setIsLoading(false);
           }
           return;
@@ -102,10 +126,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           setUser(session?.user ?? null);
           
           if (session?.user) {
+            // Set loading to false immediately to show UI, then load data in background
+            setIsLoading(false);
             await loadUserData(session.user.id);
+          } else {
+            clearTimeout(timeoutId);
+            setIsLoading(false);
           }
-          
-          setIsLoading(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -117,17 +144,21 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     initializeAuth();
 
-    // Listen for auth changes
+    // Listen for auth changes - but only load data once per session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
+      // Only reload data on SIGNED_IN or SIGNED_OUT events
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUser(session.user);
         await loadUserData(session.user.id);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
         setProfile(null);
         setRoles([]);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        // Just update the user object, don't reload data
+        setUser(session.user);
       }
     });
 
