@@ -15,6 +15,7 @@ import { nifty50Assets } from "@/data/nifty50Assets";
 import { competitionResetService, ResetOptions } from "@/services/competitionReset";
 import { simpleResetService } from "@/services/simpleReset";
 import { blackSwanEventService } from "@/services/blackSwanEvent";
+import MaintenanceModeToggle from "@/components/MaintenanceModeToggle";
 
 interface Asset {
   id: string;
@@ -902,7 +903,7 @@ const Admin = () => {
         </Card>
 
         <Tabs defaultValue="prices" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="prices">
               <DollarSign className="h-4 w-4 mr-2" />
               Prices
@@ -925,15 +926,11 @@ const Admin = () => {
             </TabsTrigger>
             <TabsTrigger value="activity">
               <Settings className="h-4 w-4 mr-2" />
-              Activity
+              Settings
             </TabsTrigger>
             <TabsTrigger value="competition">
               <RotateCcw className="h-4 w-4 mr-2" />
               Competition
-            </TabsTrigger>
-            <TabsTrigger value="blackswan">
-              <Skull className="h-4 w-4 mr-2" />
-              Black Swan
             </TabsTrigger>
           </TabsList>
 
@@ -1327,6 +1324,19 @@ const Admin = () => {
 
           <TabsContent value="activity">
             <div className="space-y-6">
+              {/* Maintenance Mode Toggle */}
+              <Card className="card-enhanced border-warning/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-warning" />
+                    Maintenance Mode
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MaintenanceModeToggle />
+                </CardContent>
+              </Card>
+
               <Card className="card-enhanced">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1545,96 +1555,6 @@ const Admin = () => {
                         />
                         <span className="text-sm">Reset Rounds</span>
                       </label>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="blackswan">
-            <div className="space-y-6">
-              {/* Black Swan Status */}
-              <Card className="card-enhanced">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Skull className="h-5 w-5 text-primary" />
-                    Black Swan Event Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {blackSwanStatus ? (
-                    <div className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Event Status</p>
-                          <Badge variant={blackSwanStatus.isActive ? "destructive" : "secondary"}>
-                            {blackSwanStatus.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Trading Status</p>
-                          <Badge variant={blackSwanStatus.tradingHalted ? "destructive" : "default"}>
-                            {blackSwanStatus.tradingHalted ? "Halted" : "Active"}
-                          </Badge>
-                        </div>
-                      </div>
-                      {blackSwanStatus.tradingHalted && blackSwanStatus.haltEndTime && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <p className="text-sm text-red-800">
-                            Trading will resume at: {new Date(blackSwanStatus.haltEndTime).toLocaleString()}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground">No Black Swan event active</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Black Swan Controls */}
-              <Card className="card-enhanced border-red-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-red-600">
-                    <AlertTriangle className="h-5 w-5" />
-                    Black Swan Event Controls
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <h4 className="font-semibold text-red-800 mb-2">⚠️ Black Swan Event Mechanics</h4>
-                      <ul className="text-sm text-red-700 space-y-1">
-                        <li>• Triggers -8% market crash across all assets</li>
-                        <li>• Trading halt for 90 seconds (1.5 minutes)</li>
-                        <li>• Blue-chip stocks (Reliance, HUL, Infosys) recover +2%</li>
-                        <li>• Other stocks remain at -8% crash level</li>
-                        <li>• Tests risk management in extreme conditions</li>
-                      </ul>
-                    </div>
-                    
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Button 
-                        onClick={triggerBlackSwan}
-                        variant="destructive"
-                        className="h-16 flex flex-col items-center justify-center gap-2"
-                        disabled={blackSwanStatus?.isActive}
-                      >
-                        <Skull className="h-5 w-5" />
-                        <span className="font-semibold text-sm">Trigger Black Swan</span>
-                        <span className="text-xs opacity-90">Market crash + halt</span>
-                      </Button>
-                      <Button 
-                        onClick={cancelBlackSwan}
-                        variant="outline"
-                        className="h-16 flex flex-col items-center justify-center gap-2 border-red-300 text-red-600 hover:bg-red-50"
-                        disabled={!blackSwanStatus?.isActive}
-                      >
-                        <AlertTriangle className="h-5 w-5" />
-                        <span className="font-semibold text-sm">Cancel Event</span>
-                        <span className="text-xs opacity-90">Emergency stop</span>
-                      </Button>
                     </div>
                   </div>
                 </CardContent>

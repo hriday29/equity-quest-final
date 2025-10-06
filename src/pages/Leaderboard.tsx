@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Medal, Award, TrendingUp, TrendingDown, BarChart3, Crown, Target, RefreshCw, Users } from "lucide-react";
 import { portfolioScoringEngine, PortfolioMetrics, CompetitionResults } from "@/services/portfolioScoring";
+import CompetitionStatusCard from "@/components/CompetitionStatusCard";
 
 interface LeaderboardEntry {
   id: string;
@@ -177,15 +178,7 @@ const Leaderboard = () => {
                 </CardContent>
               </Card>
 
-              <Card className="card-enhanced">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Competition Status</span>
-                  </div>
-                  <div className="text-2xl font-bold mt-1 text-primary">Active</div>
-                </CardContent>
-              </Card>
+              <CompetitionStatusCard />
             </div>
 
             {/* Leaderboard Tabs */}

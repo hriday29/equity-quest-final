@@ -59,53 +59,61 @@ serve(async (req) => {
 
     const updates = [];
 
+    // Process each asset independently with its own random fluctuation
     for (const asset of assets) {
-      // Generate random fluctuation: ±0.5%
-      const fluctuation = (Math.random() - 0.5) * 2 * 0.005; // ±0.5%
-      
-      const oldPrice = parseFloat(asset.current_price);
-      let newPrice = oldPrice * (1 + fluctuation);
+      try {
+        // Generate independent random fluctuation for each asset: ±0.5%
+        const fluctuation = (Math.random() - 0.5) * 2 * 0.005; // ±0.5%
+        
+        const oldPrice = parseFloat(asset.current_price);
+        let newPrice = oldPrice * (1 + fluctuation);
 
-      // Apply circuit limits
-      const maxLimit = asset.asset_type === 'stock' ? limits.stocks : limits.commodities;
-      const maxPrice = parseFloat(asset.previous_close) * (1 + maxLimit);
-      const minPrice = parseFloat(asset.previous_close) * (1 - maxLimit);
+        // Apply circuit limits
+        const maxLimit = asset.asset_type === 'stock' ? limits.stocks : limits.commodities;
+        const maxPrice = parseFloat(asset.previous_close) * (1 + maxLimit);
+        const minPrice = parseFloat(asset.previous_close) * (1 - maxLimit);
 
-      newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
+        newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
+        const changePercentage = ((newPrice - oldPrice) / oldPrice) * 100;
 
-      const changePercentage = ((newPrice - oldPrice) / oldPrice) * 100;
+        // Update asset price - each asset updates independently
+        const { error: updateError } = await supabaseClient
+          .from('assets')
+          .update({
+            current_price: newPrice,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', asset.id);
 
-      // Update asset price
-      const { error: updateError } = await supabaseClient
-        .from('assets')
-        .update({
-          current_price: newPrice,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', asset.id);
+        if (updateError) {
+          console.error(`Error updating ${asset.symbol}:`, updateError);
+          continue;
+        }
 
-      if (updateError) {
-        console.error(`Error updating ${asset.symbol}:`, updateError);
-        continue;
-      }
+        // Log the fluctuation
+        const { error: logError } = await supabaseClient
+          .from('price_fluctuation_log')
+          .insert({
+            asset_id: asset.id,
+            old_price: oldPrice,
+            new_price: newPrice,
+            change_percentage: changePercentage,
+            fluctuation_type: 'noise',
+          });
 
-      // Log the fluctuation
-      await supabaseClient
-        .from('price_fluctuation_log')
-        .insert({
-          asset_id: asset.id,
-          old_price: oldPrice,
-          new_price: newPrice,
-          change_percentage: changePercentage,
-          fluctuation_type: 'noise',
+        if (logError) {
+          console.error(`Error logging fluctuation for ${asset.symbol}:`, logError);
+        }
+
+        updates.push({
+          symbol: asset.symbol,
+          oldPrice,
+          newPrice,
+          change: changePercentage.toFixed(3),
         });
-
-      updates.push({
-        symbol: asset.symbol,
-        oldPrice,
-        newPrice,
-        change: changePercentage.toFixed(3),
-      });
+      } catch (assetError) {
+        console.error(`Exception processing ${asset.symbol}:`, assetError);
+      }
     }
 
     console.log(`Updated ${updates.length} asset prices`);

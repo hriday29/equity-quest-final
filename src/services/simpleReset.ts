@@ -20,15 +20,15 @@ export class SimpleResetService {
 
   /**
    * Perform a complete user data reset - clears ALL user interactions and gives everyone a fresh start
-   * This does NOT reset competition rounds or asset prices - only user data is cleared
+   * This also resets asset prices by fetching from yFinance
    */
-  async resetCompetition(startingCash: number = 500000): Promise<SimpleResetResult> { // ₹5,00,000 default
+  async resetCompetition(startingCash: number = 500000): Promise<SimpleResetResult> {
     try {
-      console.log('Starting complete user data reset with starting cash: ₹', startingCash);
+      console.log('Starting complete competition reset with starting cash: ₹', startingCash);
 
       const result: SimpleResetResult = {
         success: true,
-        message: 'User data reset completed - all users have clean start with ₹' + startingCash,
+        message: 'Competition reset completed - all data cleared and prices refreshed',
         details: {
           portfoliosReset: 0,
           positionsDeleted: 0,
@@ -41,178 +41,196 @@ export class SimpleResetService {
         }
       };
 
-      // Clear all user interactions in proper order to avoid foreign key constraints
+      // Clear all data in proper order to avoid foreign key constraints
 
-      // 1. Delete all user positions (stocks/assets they own)
+      // 1. Delete price fluctuation logs first (references events)
       try {
-        const { count: positionsCount, error: positionsError } = await supabase
+        const { count, error } = await supabase
+          .from('price_fluctuation_log')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (error) {
+          console.error('Error deleting price fluctuation logs:', error);
+        } else {
+          result.details.priceFluctuationsDeleted = count || 0;
+          console.log(`Cleared ${count || 0} price fluctuation logs`);
+        }
+      } catch (error) {
+        console.error('Exception deleting price fluctuation logs:', error);
+      }
+
+      // 2. Delete all user positions
+      try {
+        const { count, error } = await supabase
           .from('positions')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (positionsError) {
-          console.error('Error deleting positions:', positionsError);
+        if (error) {
+          console.error('Error deleting positions:', error);
         } else {
-          result.details.positionsDeleted = positionsCount || 0;
-          console.log(`Deleted ${result.details.positionsDeleted} positions`);
+          result.details.positionsDeleted = count || 0;
+          console.log(`Deleted ${count || 0} positions`);
         }
       } catch (error) {
         console.error('Exception deleting positions:', error);
       }
 
-      // 2. Delete all pending orders (buy/sell orders users placed)
+      // 3. Delete all orders
       try {
-        const { count: ordersCount, error: ordersError } = await supabase
+        const { count, error } = await supabase
           .from('orders')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (ordersError) {
-          console.error('Error deleting orders:', ordersError);
+        if (error) {
+          console.error('Error deleting orders:', error);
         } else {
-          result.details.ordersDeleted = ordersCount || 0;
-          console.log(`Deleted ${result.details.ordersDeleted} pending orders`);
+          result.details.ordersDeleted = count || 0;
+          console.log(`Deleted ${count || 0} orders`);
         }
       } catch (error) {
         console.error('Exception deleting orders:', error);
       }
 
-      // 3. Delete all transaction history (buy/sell records)
+      // 4. Delete all transactions
       try {
-        const { count: transactionsCount, error: transactionsError } = await supabase
+        const { count, error } = await supabase
           .from('transactions')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (transactionsError) {
-          console.error('Error deleting transactions:', transactionsError);
+        if (error) {
+          console.error('Error deleting transactions:', error);
         } else {
-          result.details.transactionsDeleted = transactionsCount || 0;
-          console.log(`Deleted ${result.details.transactionsDeleted} transaction records`);
+          result.details.transactionsDeleted = count || 0;
+          console.log(`Deleted ${count || 0} transactions`);
         }
       } catch (error) {
         console.error('Exception deleting transactions:', error);
       }
 
-      // 4. Clear all margin warnings
+      // 5. Clear margin warnings
       try {
-        const { count: marginWarningsCount, error: marginWarningsError } = await supabase
+        const { count, error } = await supabase
           .from('margin_warnings')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (marginWarningsError) {
-          console.error('Error deleting margin warnings:', marginWarningsError);
+        if (error) {
+          console.error('Error deleting margin warnings:', error);
         } else {
-          result.details.marginWarningsDeleted = marginWarningsCount || 0;
-          console.log(`Cleared ${marginWarningsCount || 0} margin warnings`);
+          result.details.marginWarningsDeleted = count || 0;
+          console.log(`Cleared ${count || 0} margin warnings`);
         }
       } catch (error) {
         console.error('Exception deleting margin warnings:', error);
       }
 
-      // 5. Clear portfolio performance history
+      // 6. Clear portfolio history
       try {
-        const { count: portfolioHistoryCount, error: portfolioHistoryError } = await supabase
+        const { count, error } = await supabase
           .from('portfolio_history')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (portfolioHistoryError) {
-          console.error('Error deleting portfolio history:', portfolioHistoryError);
+        if (error) {
+          console.error('Error deleting portfolio history:', error);
         } else {
-          result.details.portfolioHistoryDeleted = portfolioHistoryCount || 0;
-          console.log(`Cleared ${portfolioHistoryCount || 0} portfolio history records`);
+          result.details.portfolioHistoryDeleted = count || 0;
+          console.log(`Cleared ${count || 0} portfolio history records`);
         }
       } catch (error) {
         console.error('Exception deleting portfolio history:', error);
       }
 
-      // 6. Clear competition events (admin-triggered events)
+      // 7. Clear competition events (this will cascade delete price_fluctuation_log entries)
       try {
-        const { count: eventsCount, error: eventsError } = await supabase
+        const { count, error } = await supabase
           .from('competition_events')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (eventsError) {
-          console.error('Error deleting competition events:', eventsError);
+        if (error) {
+          console.error('Error deleting competition events:', error);
         } else {
-          result.details.competitionEventsDeleted = eventsCount || 0;
-          console.log(`Cleared ${eventsCount || 0} competition events`);
+          result.details.competitionEventsDeleted = count || 0;
+          console.log(`Cleared ${count || 0} competition events`);
         }
       } catch (error) {
         console.error('Exception deleting competition events:', error);
       }
 
-      // 7. Clear price fluctuation logs (if table exists)
+      // 8. Reset ALL portfolios to starting cash using service role
       try {
-        // Note: price_fluctuations table might not exist in all schemas
-        // This is handled gracefully with try-catch
-        const { count: priceFluctuationsCount, error: priceFluctuationsError } = await supabase
-          .from('price_fluctuations' as any)
-          .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000');
-
-        if (priceFluctuationsError) {
-          console.log('Note: price_fluctuations table might not exist');
-        } else {
-          result.details.priceFluctuationsDeleted = priceFluctuationsCount || 0;
-          console.log(`Cleared ${priceFluctuationsCount || 0} price fluctuation logs`);
-        }
-      } catch (error) {
-        console.log('Note: price_fluctuations table might not exist');
-      }
-
-      // 8. Reset all portfolios to starting cash (₹5L default)
-      try {
-        const { data: portfolios, error: portfoliosError } = await supabase
+        const { data: portfolios, error: fetchError } = await supabase
           .from('portfolios')
-          .select('id')
-          .neq('id', '00000000-0000-0000-0000-000000000000');
+          .select('id, user_id');
 
-        if (portfoliosError) {
-          console.error('Error fetching portfolios:', portfoliosError);
+        if (fetchError) {
+          console.error('Error fetching portfolios:', fetchError);
         } else if (portfolios && portfolios.length > 0) {
-          // Update each portfolio individually to ensure updates work
-          for (const portfolio of portfolios) {
-            const { error: updateError } = await supabase
-              .from('portfolios')
-              .update({
-                cash_balance: startingCash,
-                total_value: startingCash,
-                profit_loss: 0,
-                profit_loss_percentage: 0,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', portfolio.id);
+          // Update all portfolios in a single query
+          const { error: updateError } = await supabase
+            .from('portfolios')
+            .update({
+              cash_balance: startingCash,
+              total_value: startingCash,
+              profit_loss: 0,
+              profit_loss_percentage: 0,
+              updated_at: new Date().toISOString()
+            })
+            .in('id', portfolios.map(p => p.id));
 
-            if (updateError) {
-              console.error('Error updating portfolio:', updateError);
-            }
+          if (updateError) {
+            console.error('Error updating portfolios:', updateError);
+          } else {
+            result.details.portfoliosReset = portfolios.length;
+            console.log(`Reset ${portfolios.length} portfolios to ₹${startingCash.toLocaleString()}`);
           }
-          
-          result.details.portfoliosReset = portfolios.length;
-          console.log(`Reset ${result.details.portfoliosReset} portfolios to ₹${startingCash.toLocaleString()}`);
-        } else {
-          console.log('No portfolios found to reset');
         }
       } catch (error) {
         console.error('Exception resetting portfolios:', error);
       }
 
-      // 9. Note: Competition rounds are NOT reset - admins control the competition flow
-      // The reset only clears user data, not the competition structure
+      // 9. Fetch fresh prices from yFinance
+      try {
+        console.log('Fetching fresh prices from yFinance...');
+        const { data, error } = await supabase.functions.invoke('fetch-yfinance-data', {
+          body: { resetMode: true }
+        });
 
-      // Note: Asset prices are NOT reset - they keep current market values from yFinance
-      // Competition rounds are NOT reset - admins control the competition flow
-      // Only user data is cleared for a fresh start
+        if (error) {
+          console.error('Error fetching yFinance data:', error);
+        } else {
+          console.log('Successfully refreshed asset prices from yFinance');
+        }
+      } catch (error) {
+        console.error('Exception fetching yFinance data:', error);
+      }
 
-      console.log('Complete user data reset completed:', result);
+      // 9. Fetch fresh prices from yFinance
+      try {
+        console.log('Fetching fresh prices from yFinance...');
+        const { data, error } = await supabase.functions.invoke('fetch-yfinance-data', {
+          body: { resetMode: true }
+        });
+
+        if (error) {
+          console.error('Error fetching yFinance data:', error);
+        } else {
+          console.log('Successfully refreshed asset prices from yFinance');
+        }
+      } catch (error) {
+        console.error('Exception fetching yFinance data:', error);
+      }
+
+      console.log('Competition reset completed:', result);
       return result;
 
     } catch (error) {
-      console.error('Error during comprehensive competition reset:', error);
+      console.error('Error during competition reset:', error);
       return {
         success: false,
         message: `Competition reset failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
