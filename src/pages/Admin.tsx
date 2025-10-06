@@ -15,6 +15,7 @@ import { nifty50Assets } from "@/data/nifty50Assets";
 import { competitionResetService, ResetOptions } from "@/services/competitionReset";
 import { simpleResetService } from "@/services/simpleReset";
 import { blackSwanEventService } from "@/services/blackSwanEvent";
+import { priceManagementService } from "@/services/priceManagement";
 
 interface Asset {
   id: string;
@@ -77,7 +78,7 @@ const Admin = () => {
     resetNews: false,
     resetPriceHistory: false,
     resetPriceFluctuations: true,
-    startingCash: 500000, // ₹5,00,000 default
+    startingCash: 500000, // ₹5,00,000 as per PRD
     resetRounds: false // Competition rounds are NOT reset - only user data is cleared
   });
 
@@ -438,11 +439,17 @@ const Admin = () => {
       const price = parseFloat(newPrice);
       const { data: { session } } = await supabase.auth.getSession();
 
+      if (!session?.user?.id) {
+        toast.error("Not authenticated");
+        return;
+      }
+
       // Update asset price
       const { error: assetError } = await supabase
         .from("assets")
         .update({ 
           current_price: price,
+          previous_close: price,
           updated_at: new Date().toISOString()
         })
         .eq("id", selectedAsset);
@@ -453,7 +460,16 @@ const Admin = () => {
       await supabase.from("price_history").insert({
         asset_id: selectedAsset,
         price: price,
-        changed_by: session?.user.id,
+        changed_by: session.user.id,
+      });
+
+      // Log price fluctuation
+      await supabase.from("price_fluctuation_log").insert({
+        asset_id: selectedAsset,
+        old_price: 0, // We don't have the old price here
+        new_price: price,
+        change_percentage: 0,
+        fluctuation_type: 'admin_absolute_price'
       });
 
       toast.success("Price updated successfully!");
@@ -472,33 +488,27 @@ const Admin = () => {
 
     try {
       const percentage = parseFloat(priceChangePercentage);
-      const asset = assets.find(a => a.id === selectedAsset);
-      if (!asset) throw new Error("Asset not found");
-
-      const newPrice = asset.current_price * (1 + percentage / 100);
       const { data: { session } } = await supabase.auth.getSession();
 
-      // Update asset price
-      const { error: assetError } = await supabase
-        .from("assets")
-        .update({ 
-          current_price: newPrice,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", selectedAsset);
+      if (!session?.user?.id) {
+        toast.error("Not authenticated");
+        return;
+      }
 
-      if (assetError) throw assetError;
+      // Use the price management service for percentage changes
+      const result = await priceManagementService.applyPercentageChange(
+        selectedAsset,
+        percentage,
+        session.user.id
+      );
 
-      // Log price history
-      await supabase.from("price_history").insert({
-        asset_id: selectedAsset,
-        price: newPrice,
-        changed_by: session?.user.id,
-      });
-
-      toast.success(`Price changed by ${percentage}% successfully!`);
-      setPriceChangePercentage("");
-      fetchAssets();
+      if (result.success) {
+        toast.success(result.message);
+        setPriceChangePercentage("");
+        fetchAssets();
+      } else {
+        toast.error(result.message);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to update price");
     }

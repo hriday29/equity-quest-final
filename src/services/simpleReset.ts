@@ -16,7 +16,7 @@ export interface SimpleResetResult {
 }
 
 export class SimpleResetService {
-  private readonly defaultStartingCash = 100000; // ₹1,00,000
+  private readonly defaultStartingCash = 500000; // ₹5,00,000 as per PRD
 
   /**
    * Perform a complete user data reset - clears ALL user interactions and gives everyone a fresh start

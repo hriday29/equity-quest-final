@@ -22,10 +22,10 @@ export interface TradingHaltStatus {
 }
 
 export class BlackSwanEventService {
-  private readonly haltDuration = 90; // 1.5 minutes = 90 seconds
-  private readonly crashPercentage = -8; // -8% crash
-  private readonly recoveryPercentage = 2; // +2% recovery for blue-chips
-  private readonly blueChipSymbols = ['RELIANCE', 'HUL', 'INFOSYS'];
+  private readonly haltDuration = 90; // 90 seconds = 1.5 minutes as per PRD
+  private readonly crashPercentage = -8; // -8% crash as per PRD
+  private readonly recoveryPercentage = 2; // +2% recovery for blue-chips as per PRD
+  private readonly blueChipSymbols = ['RELIANCE', 'HUL', 'INFOSYS']; // Blue-chip stocks as per PRD
 
   /**
    * Trigger Black Swan event
@@ -303,7 +303,7 @@ export class BlackSwanEventService {
         .from('news')
         .insert({
           title: '🚨 BLACK SWAN EVENT: Market Crash & Trading Halt',
-          content: `A catastrophic market event has triggered an immediate trading halt across all markets. All assets have experienced an ${Math.abs(this.crashPercentage)}% crash. Trading will resume in 90 seconds. This is a test of your risk management skills in extreme market conditions.`,
+          content: `Breaking: A major Indian bank has defaulted on its international debt obligations. Global ratings agencies are putting India's sovereign rating on a negative watch. NIFTY 50 Index immediately halts trading for 2 minutes. Upon re-opening, all stocks are down ${Math.abs(this.crashPercentage)}%. Trading will resume in 90 seconds. This is a test of your risk management skills in extreme market conditions.`,
           category: 'market_event',
           published_by: session?.user.id,
           is_public: true

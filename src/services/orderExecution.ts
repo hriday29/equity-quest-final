@@ -510,7 +510,7 @@ export class OrderExecutionEngine {
           .from('portfolios')
           .insert({
             user_id: userId,
-            cash_balance: 500000.00, // Starting capital
+            cash_balance: 500000.00, // Starting capital ₹5,00,000
             total_value: 500000.00,
             profit_loss: 0.00,
             profit_loss_percentage: 0.00
@@ -587,7 +587,7 @@ export class OrderExecutionEngine {
 
       if (portfolio) {
         const totalPortfolioValue = totalValue + portfolio.cash_balance;
-        const initialValue = 500000; // Starting capital
+        const initialValue = 500000; // Starting capital ₹5,00,000
         const profitLoss = totalPortfolioValue - initialValue;
         const profitLossPercentage = (profitLoss / initialValue) * 100;
 
@@ -630,22 +630,35 @@ export class OrderExecutionEngine {
       for (const position of shortPositions) {
         const currentPrice = position.assets?.current_price || 0;
         const positionValue = position.quantity * currentPrice;
+        
+        // Calculate margin level: (Cash Balance / Position Value) * 100
         const marginLevel = (portfolio.cash_balance / positionValue) * 100;
 
         // Check if margin level is below maintenance margin (15%)
         if (marginLevel < (this.constraints.shortSellingMaintenanceMargin * 100)) {
           // Send margin warning at 18% or liquidate at 15%
           if (marginLevel < 18 && marginLevel >= 15) {
-            // Send warning
-            await supabase
+            // Send warning - check if we already sent one recently
+            const { data: existingWarning } = await supabase
               .from('margin_warnings')
-              .insert({
-                user_id: userId,
-                position_id: position.id,
-                margin_level: marginLevel,
-                warning_type: 'maintenance_warning',
-                message: `Margin level at ${marginLevel.toFixed(2)}%. Please add funds or close position.`
-              });
+              .select('id')
+              .eq('user_id', userId)
+              .eq('position_id', position.id)
+              .eq('warning_type', 'maintenance_warning')
+              .gte('created_at', new Date(Date.now() - 60000).toISOString()) // Within last minute
+              .single();
+
+            if (!existingWarning) {
+              await supabase
+                .from('margin_warnings')
+                .insert({
+                  user_id: userId,
+                  position_id: position.id,
+                  margin_level: marginLevel,
+                  warning_type: 'maintenance_warning',
+                  message: `⚠️ MARGIN WARNING: Your short position in ${position.assets?.symbol} has a margin level of ${marginLevel.toFixed(2)}%. Please add funds or close the position to avoid liquidation.`
+                });
+            }
           } else if (marginLevel < 15) {
             // Auto-liquidate position
             await this.liquidatePosition(userId, position.id, position.quantity, currentPrice);
