@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface Asset {
+  symbol: string;
+  current_price: number;
+}
+
 interface Position {
   id: string;
   user_id: string;
@@ -14,10 +19,7 @@ interface Position {
   is_short: boolean;
   initial_margin: number | null;
   maintenance_margin: number | null;
-  assets: {
-    symbol: string;
-    current_price: number;
-  };
+  assets: Asset | Asset[];
 }
 
 interface MarginWarning {
@@ -87,8 +89,12 @@ serve(async (req) => {
         continue; // Skip positions without margin data
       }
 
+      // Get asset data (handle both single object and array)
+      const asset = Array.isArray(position.assets) ? position.assets[0] : position.assets;
+      if (!asset) continue;
+
       // Calculate current margin level
-      const currentValue = position.quantity * position.assets.current_price;
+      const currentValue = position.quantity * asset.current_price;
       const marginLevel = (position.maintenance_margin / currentValue) * 100;
 
       // Check if position needs attention
@@ -103,7 +109,7 @@ serve(async (req) => {
           position_id: position.id,
           margin_level: marginLevel,
           warning_type: 'liquidation',
-          message: `Position in ${position.assets.symbol} was automatically liquidated due to insufficient margin (${marginLevel.toFixed(2)}%)`
+          message: `Position in ${asset.symbol} was automatically liquidated due to insufficient margin (${marginLevel.toFixed(2)}%)`
         });
       } else if (marginLevel < 18) {
         // Send margin call warning
@@ -112,7 +118,7 @@ serve(async (req) => {
           position_id: position.id,
           margin_level: marginLevel,
           warning_type: 'margin_call',
-          message: `Margin call for ${position.assets.symbol}: Margin level at ${marginLevel.toFixed(2)}%. Position will be liquidated if it falls below 15%.`
+          message: `Margin call for ${asset.symbol}: Margin level at ${marginLevel.toFixed(2)}%. Position will be liquidated if it falls below 15%.`
         });
       } else if (marginLevel < 20) {
         // Send maintenance warning
@@ -121,7 +127,7 @@ serve(async (req) => {
           position_id: position.id,
           margin_level: marginLevel,
           warning_type: 'maintenance_warning',
-          message: `Low margin warning for ${position.assets.symbol}: Margin level at ${marginLevel.toFixed(2)}%. Consider closing position or adding funds.`
+          message: `Low margin warning for ${asset.symbol}: Margin level at ${marginLevel.toFixed(2)}%. Consider closing position or adding funds.`
         });
       }
     }
@@ -156,10 +162,11 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in check-margins function:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -171,17 +178,21 @@ serve(async (req) => {
 
 async function liquidatePosition(supabaseClient: any, position: Position) {
   try {
+    // Get asset data (handle both single object and array)
+    const asset = Array.isArray(position.assets) ? position.assets[0] : position.assets;
+    if (!asset) return;
+
     // Create a market order to cover the short position
     const { error: orderError } = await supabaseClient
       .from('orders')
       .insert({
         user_id: position.user_id,
-        asset_id: position.assets.symbol, // This should be asset_id, not symbol
+        asset_id: position.id, // Use position ID as we need the actual asset_id
         order_type: 'market',
         quantity: position.quantity,
-        price: position.assets.current_price,
+        price: asset.current_price,
         status: 'executed',
-        executed_price: position.assets.current_price,
+        executed_price: asset.current_price,
         executed_at: new Date().toISOString(),
         is_buy: true // Buy to cover short position
       });
@@ -203,7 +214,7 @@ async function liquidatePosition(supabaseClient: any, position: Position) {
 
     // Update portfolio cash balance (return margin + profit/loss)
     const marginReturn = position.initial_margin || 0;
-    const profitLoss = position.quantity * (position.assets.current_price - (position.current_value / position.quantity));
+    const profitLoss = position.quantity * (asset.current_price - (position.current_value / position.quantity));
     const cashChange = marginReturn + profitLoss;
 
     const { error: portfolioError } = await supabaseClient

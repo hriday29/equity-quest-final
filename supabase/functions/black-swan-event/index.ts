@@ -49,10 +49,11 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in black-swan-event function:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -128,10 +129,11 @@ async function triggerBlackSwanEvent(supabaseClient: any) {
 
   } catch (error) {
     console.error('Error triggering Black Swan event:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
@@ -166,7 +168,7 @@ async function getBlackSwanStatus(supabaseClient: any) {
       .eq('key', 'trading_halt')
       .single();
 
-    let haltStatus = { is_halted: false };
+    let haltStatus: any = { is_halted: false, halt_start_time: null, halt_end_time: null };
     if (settings) {
       haltStatus = JSON.parse(settings.value);
     }
@@ -196,10 +198,11 @@ async function getBlackSwanStatus(supabaseClient: any) {
 
   } catch (error) {
     console.error('Error getting Black Swan status:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
@@ -232,10 +235,11 @@ async function cancelBlackSwanEvent(supabaseClient: any) {
 
   } catch (error) {
     console.error('Error cancelling Black Swan event:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
@@ -277,10 +281,11 @@ async function endTradingHalt(supabaseClient: any) {
 
   } catch (error) {
     console.error('Error ending trading halt:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );

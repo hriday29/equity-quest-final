@@ -168,27 +168,32 @@ export class SimpleResetService {
       try {
         const { data: portfolios, error: portfoliosError } = await supabase
           .from('portfolios')
-          .select('id');
+          .select('id')
+          .neq('id', '00000000-0000-0000-0000-000000000000');
 
         if (portfoliosError) {
           console.error('Error fetching portfolios:', portfoliosError);
         } else if (portfolios && portfolios.length > 0) {
-          const { error: updateError } = await supabase
-            .from('portfolios')
-            .update({
-              cash_balance: startingCash,
-              total_value: startingCash,
-              profit_loss: 0,
-              profit_loss_percentage: 0,
-              updated_at: new Date().toISOString()
-            });
+          // Update each portfolio individually to ensure updates work
+          for (const portfolio of portfolios) {
+            const { error: updateError } = await supabase
+              .from('portfolios')
+              .update({
+                cash_balance: startingCash,
+                total_value: startingCash,
+                profit_loss: 0,
+                profit_loss_percentage: 0,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', portfolio.id);
 
-          if (updateError) {
-            console.error('Error updating portfolios:', updateError);
-          } else {
-            result.details.portfoliosReset = portfolios.length;
-            console.log(`Reset ${result.details.portfoliosReset} portfolios to ₹${startingCash.toLocaleString()}`);
+            if (updateError) {
+              console.error('Error updating portfolio:', updateError);
+            }
           }
+          
+          result.details.portfoliosReset = portfolios.length;
+          console.log(`Reset ${result.details.portfoliosReset} portfolios to ₹${startingCash.toLocaleString()}`);
         } else {
           console.log('No portfolios found to reset');
         }
