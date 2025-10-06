@@ -1,9 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { LogOut, TrendingUp, LayoutDashboard, Settings, Users, MessageSquare, Trophy, History, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
-import { useUser } from "@/contexts/UserContext";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -12,7 +12,33 @@ interface DashboardLayoutProps {
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, isAdmin } = useUser();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    const checkRole = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", session.user.id)
+          .single();
+
+        setUserName(profile?.full_name || "User");
+
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id);
+
+        const userRoles = roles?.map(r => r.role) || [];
+        setIsAdmin(userRoles.includes("admin") || userRoles.includes("owner"));
+      }
+    };
+
+    checkRole();
+  }, []);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -71,7 +97,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
             <div className="flex items-center gap-3">
               <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium">{profile?.full_name || "User"}</p>
+                <p className="text-sm font-medium">{userName}</p>
                 <p className="text-xs text-muted-foreground">{isAdmin ? "Admin" : "Participant"}</p>
               </div>
               <Button variant="outline" size="icon" onClick={handleLogout}>
