@@ -37,7 +37,7 @@ const TradingHaltBanner = () => {
         event: '*', 
         schema: 'public', 
         table: 'competition_settings',
-        filter: 'key=eq.trading_halt'
+        filter: 'setting_key=eq.trading_halt'
       }, () => {
         fetchHaltStatus();
       })
@@ -53,9 +53,9 @@ const TradingHaltBanner = () => {
     try {
       const { data: settings } = await supabase
         .from('competition_settings')
-        .select('value')
-        .eq('key', 'trading_halt')
-        .single();
+        .select('setting_value')
+        .eq('setting_key', 'trading_halt')
+        .maybeSingle();
 
       if (!settings) {
         setHaltStatus({
@@ -66,7 +66,7 @@ const TradingHaltBanner = () => {
         return;
       }
 
-      const haltData = JSON.parse(settings.value);
+      const haltData = JSON.parse(settings.setting_value as string);
       const now = new Date();
       const haltEndTime = haltData.halt_end_time ? new Date(haltData.halt_end_time) : null;
 

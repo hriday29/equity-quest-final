@@ -108,8 +108,8 @@ export class BlackSwanEventService {
     const { error } = await supabase
       .from('competition_settings')
       .upsert({
-        key: 'trading_halt',
-        value: JSON.stringify({
+        setting_key: 'trading_halt',
+        setting_value: JSON.stringify({
           is_halted: true,
           halt_start_time: haltStartTime.toISOString(),
           halt_end_time: haltEndTime.toISOString(),
@@ -138,8 +138,8 @@ export class BlackSwanEventService {
       const { error } = await supabase
         .from('competition_settings')
         .upsert({
-          key: 'trading_halt',
-          value: JSON.stringify({
+          setting_key: 'trading_halt',
+          setting_value: JSON.stringify({
             is_halted: false,
             halt_end_time: new Date().toISOString(),
             reason: 'Trading resumed after Black Swan event'
@@ -272,16 +272,16 @@ export class BlackSwanEventService {
     reason: string
   ): Promise<void> {
     try {
+      const changePercentage = ((newPrice - oldPrice) / oldPrice) * 100;
+      
       const { error } = await supabase
-        .from('price_fluctuation_logs')
+        .from('price_fluctuation_log')
         .insert({
           asset_id: assetId,
           old_price: oldPrice,
           new_price: newPrice,
-          price_change: newPrice - oldPrice,
-          price_change_percentage: ((newPrice - oldPrice) / oldPrice) * 100,
-          reason: reason,
-          timestamp: new Date().toISOString()
+          change_percentage: changePercentage,
+          fluctuation_type: reason
         });
 
       if (error) {
@@ -349,9 +349,9 @@ export class BlackSwanEventService {
     try {
       const { data: settings } = await supabase
         .from('competition_settings')
-        .select('value')
-        .eq('key', 'trading_halt')
-        .single();
+        .select('setting_value')
+        .eq('setting_key', 'trading_halt')
+        .maybeSingle();
 
       if (!settings) {
         return {
@@ -360,7 +360,7 @@ export class BlackSwanEventService {
         };
       }
 
-      const haltData = JSON.parse(settings.value);
+      const haltData = JSON.parse(settings.setting_value as string);
       const now = new Date();
       const haltEndTime = new Date(haltData.halt_end_time);
 
@@ -413,7 +413,7 @@ export class BlackSwanEventService {
         return null;
       }
 
-      const mechanics = JSON.parse(event.mechanics);
+      const mechanics = JSON.parse(event.mechanics as string);
       const haltStatus = await this.getTradingHaltStatus();
 
       return {

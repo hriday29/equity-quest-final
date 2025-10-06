@@ -85,7 +85,7 @@ const MarginWarningSystem = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setWarnings(data || []);
+      setWarnings((data || []) as MarginWarning[]);
     } catch (error) {
       console.error('Error fetching warnings:', error);
     }

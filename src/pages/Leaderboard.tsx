@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Medal, Award, TrendingUp, TrendingDown, BarChart3, Crown, Target, RefreshCw } from "lucide-react";
+import { Trophy, Medal, Award, TrendingUp, TrendingDown, BarChart3, Crown, Target, RefreshCw, Users } from "lucide-react";
 import { portfolioScoringEngine, PortfolioMetrics, CompetitionResults } from "@/services/portfolioScoring";
 
 interface LeaderboardEntry {

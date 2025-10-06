@@ -73,7 +73,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
         return;
       }
 
-      const historicalData = metrics.data as PriceHistory[];
+      const historicalData = (metrics.data as unknown) as PriceHistory[];
       
       // Filter data based on time range
       const now = Date.now();

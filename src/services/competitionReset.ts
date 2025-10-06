@@ -364,7 +364,7 @@ export class CompetitionResetService {
    */
   private async resetPriceFluctuations(): Promise<number> {
     const { count, error } = await supabase
-      .from('price_fluctuation_logs')
+      .from('price_fluctuation_log')
       .delete()
       .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 
@@ -393,27 +393,18 @@ export class CompetitionResetService {
     const rounds = [
       {
         round_number: 1,
-        round_name: 'The Fundamentals Floor',
         duration_minutes: 20,
-        status: 'pending',
-        short_selling_enabled: false,
-        description: 'Basic trading with fundamental analysis focus'
+        status: 'not_started' as const
       },
       {
         round_number: 2,
-        round_name: 'The Volatility Vortex',
         duration_minutes: 25,
-        status: 'pending',
-        short_selling_enabled: true,
-        description: 'Advanced trading with short selling enabled'
+        status: 'not_started' as const
       },
       {
         round_number: 3,
-        round_name: 'The Black Swan Finale',
         duration_minutes: 30,
-        status: 'pending',
-        short_selling_enabled: true,
-        description: 'High-stakes finale with extreme market events'
+        status: 'not_started' as const
       }
     ];
 
