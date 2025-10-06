@@ -145,23 +145,21 @@ export class SimpleResetService {
         console.error('Exception deleting competition events:', error);
       }
 
-      // 7. Clear price fluctuation logs (if table exists)
+      // 7. Clear price fluctuation logs
       try {
-        // Note: price_fluctuations table might not exist in all schemas
-        // This is handled gracefully with try-catch
         const { count: priceFluctuationsCount, error: priceFluctuationsError } = await supabase
-          .from('price_fluctuations' as any)
+          .from('price_fluctuation_log')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
 
         if (priceFluctuationsError) {
-          console.log('Note: price_fluctuations table might not exist');
+          console.error('Error deleting price fluctuations:', priceFluctuationsError);
         } else {
           result.details.priceFluctuationsDeleted = priceFluctuationsCount || 0;
           console.log(`Cleared ${priceFluctuationsCount || 0} price fluctuation logs`);
         }
       } catch (error) {
-        console.log('Note: price_fluctuations table might not exist');
+        console.error('Exception deleting price fluctuations:', error);
       }
 
       // 8. Reset all portfolios to starting cash (₹5L default)

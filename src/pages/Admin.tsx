@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { nifty50Assets } from "@/data/nifty50Assets";
 import { competitionResetService, ResetOptions } from "@/services/competitionReset";
 import { simpleResetService } from "@/services/simpleReset";
+import { comprehensiveResetService } from "@/services/comprehensiveReset";
 import { blackSwanEventService } from "@/services/blackSwanEvent";
 import { priceManagementService } from "@/services/priceManagement";
 
@@ -296,12 +297,25 @@ const Admin = () => {
   };
 
   const resetCompetition = async () => {
+    if (!confirm("Are you sure you want to reset the competition? This will delete ALL user data and cannot be undone!")) {
+      return;
+    }
+
     try {
-      const result = await simpleResetService.resetCompetition(resetOptions.startingCash);
+      const result = await comprehensiveResetService.resetCompetition(resetOptions.startingCash);
       
       if (result.success) {
         const details = result.details;
-        toast.success(`${result.message} - Reset ${details.portfoliosReset} portfolios, deleted ${details.positionsDeleted} positions, ${details.ordersDeleted} orders, ${details.transactionsDeleted} transactions, ${details.marginWarningsDeleted} margin warnings, ${details.portfolioHistoryDeleted} portfolio history records, ${details.competitionEventsDeleted} events, ${details.priceFluctuationsDeleted} price fluctuations`);
+        toast.success(`${result.message} - Reset ${details.portfoliosReset} portfolios, deleted ${details.positionsDeleted} positions, ${details.ordersDeleted} orders, ${details.transactionsDeleted} transactions, ${details.marginWarningsDeleted} margin warnings, ${details.portfolioHistoryDeleted} portfolio history records, ${details.messagesDeleted} messages, ${details.priceFluctuationsDeleted} price fluctuations, ${details.roundsReset} rounds`);
+        
+        // Verify the reset was successful
+        const verification = await comprehensiveResetService.verifyReset();
+        if (verification.isComplete) {
+          toast.success("✅ Reset verification: All data cleared successfully!");
+        } else {
+          toast.warning(`⚠️ Reset verification found issues: ${verification.issues.join(", ")}`);
+        }
+        
         fetchAssets();
         fetchCompetitionStatus();
       } else {

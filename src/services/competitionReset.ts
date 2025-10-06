@@ -363,16 +363,22 @@ export class CompetitionResetService {
    * Delete all price fluctuations
    */
   private async resetPriceFluctuations(): Promise<number> {
-    const { count, error } = await supabase
-      .from('price_fluctuation_logs')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+    try {
+      const { count, error } = await supabase
+        .from('price_fluctuation_log')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 
-    if (error) {
-      throw new Error(`Failed to delete price fluctuations: ${error.message}`);
+      if (error) {
+        console.error('Error deleting price fluctuations:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Error in resetPriceFluctuations:', error);
+      return 0;
     }
-
-    return count || 0;
   }
 
   /**
