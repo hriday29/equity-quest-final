@@ -783,9 +783,9 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
-      reset_competition: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      reset_competition_all_users: {
+        Args: { starting_cash?: number }
+        Returns: Json
       }
     }
     Enums: {

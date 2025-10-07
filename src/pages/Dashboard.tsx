@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/DashboardLayout";
-import MarketOverview from "@/components/MarketOverview";
+import CollapsibleMarketOverview from "@/components/CollapsibleMarketOverview";
+import MarketSearch from "@/components/MarketSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ interface Asset {
   name: string;
   current_price: number;
   previous_close: number;
-  asset_type: string;
+  asset_type: 'stock' | 'commodity' | 'index';
   sector: string | null;
 }
 
@@ -315,8 +316,15 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* Market Overview - Moved to Top */}
-        <MarketOverview assets={assets} priceChanges={priceChanges} />
+        {/* Market Search */}
+        <MarketSearch assets={assets} />
+
+        {/* Collapsible Market Overview */}
+        <CollapsibleMarketOverview 
+          assets={assets} 
+          priceChanges={priceChanges}
+          competitionStatus={competitionStatus}
+        />
 
         {/* Portfolio Overview */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

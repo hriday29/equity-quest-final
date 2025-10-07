@@ -841,7 +841,7 @@ const Admin = () => {
         </div>
 
         {/* Round Controls */}
-        <Card className="border-border border-primary/30">
+        <Card className="card-enhanced border-primary/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -851,38 +851,38 @@ const Admin = () => {
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
+          <CardContent className="p-6">
+            <div className="flex gap-4">
               <Button 
                 onClick={() => handleRoundControl("start")}
                 disabled={roundStatus === "active" || roundStatus === "completed"}
-                className="flex-1"
+                className="flex-1 h-14 text-base"
               >
-                <Play className="h-4 w-4 mr-2" />
+                <Play className="h-5 w-5 mr-2" />
                 Start Round
               </Button>
               <Button 
                 variant="outline"
                 onClick={() => handleRoundControl("pause")}
                 disabled={roundStatus !== "active"}
-                className="flex-1"
+                className="flex-1 h-14 text-base"
               >
-                <Pause className="h-4 w-4 mr-2" />
+                <Pause className="h-5 w-5 mr-2" />
                 Pause Round
               </Button>
               <Button 
                 variant="destructive"
                 onClick={() => handleRoundControl("end")}
                 disabled={roundStatus === "completed"}
-                className="flex-1"
+                className="flex-1 h-14 text-base"
               >
-                <Square className="h-4 w-4 mr-2" />
+                <Square className="h-5 w-5 mr-2" />
                 End Round
               </Button>
             </div>
             
             {roundStatus === "completed" && (
-              <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-warning/20">
+              <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-warning/20">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="h-5 w-5 text-warning" />
                   <h3 className="font-semibold text-warning">Competition Completed</h3>
@@ -1344,15 +1344,17 @@ const Admin = () => {
                     Database Management
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
+                <CardContent className="p-6">
+                  <div className="grid gap-6 md:grid-cols-3">
                     <Button 
                       onClick={initializeNifty50Assets}
-                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                      className="h-24 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
                     >
-                      <Database className="h-5 w-5" />
-                      <span className="font-semibold text-sm">Initialize NIFTY 50</span>
-                      <span className="text-xs opacity-90">Add all 50 stocks + commodities</span>
+                      <Database className="h-6 w-6" />
+                      <div className="text-center">
+                        <div className="font-semibold">Initialize NIFTY 50</div>
+                        <div className="text-xs opacity-90 mt-1">Add all 50 stocks + commodities</div>
+                      </div>
                     </Button>
 
                     <Button 
@@ -1365,19 +1367,24 @@ const Admin = () => {
                           toast.error("Failed to fetch yFinance data");
                         }
                       }}
-                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                      className="h-24 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
                     >
-                      <TrendingUp className="h-5 w-5" />
-                      <span className="font-semibold text-sm">Fetch Live Prices</span>
-                      <span className="text-xs opacity-90">Update from yFinance API</span>
+                      <TrendingUp className="h-6 w-6" />
+                      <div className="text-center">
+                        <div className="font-semibold">Fetch Live Prices</div>
+                        <div className="text-xs opacity-90 mt-1">Update from yFinance API</div>
+                      </div>
                     </Button>
+
                     <Button 
                       onClick={checkMargins}
-                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                      className="h-24 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
                     >
-                      <Shield className="h-5 w-5" />
-                      <span className="font-semibold text-sm">Check Margins</span>
-                      <span className="text-xs opacity-90">Monitor short positions</span>
+                      <Shield className="h-6 w-6" />
+                      <div className="text-center">
+                        <div className="font-semibold">Check Margins</div>
+                        <div className="text-xs opacity-90 mt-1">Monitor short positions</div>
+                      </div>
                     </Button>
                   </div>
                 </CardContent>
@@ -1420,26 +1427,26 @@ const Admin = () => {
                     Competition Status
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-6">
                   {competitionStatus ? (
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-primary">{competitionStatus.totalParticipants}</p>
-                        <p className="text-sm text-muted-foreground">Participants</p>
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <p className="text-3xl font-bold text-primary">{competitionStatus.totalParticipants}</p>
+                        <p className="text-sm text-muted-foreground mt-2">Total Participants</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-green-600">
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <p className="text-3xl font-bold text-green-600">
                           ₹{competitionStatus.totalPortfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </p>
-                        <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
+                        <p className="text-sm text-muted-foreground mt-2">Total Portfolio Value</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-blue-600">{competitionStatus.currentRound || 'Not Started'}</p>
-                        <p className="text-sm text-muted-foreground">Current Round</p>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <p className="text-3xl font-bold text-blue-600">{competitionStatus.currentRound || 'Not Started'}</p>
+                        <p className="text-sm text-muted-foreground mt-2">Current Round</p>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-center text-muted-foreground">Loading competition status...</p>
+                    <p className="text-center text-muted-foreground py-4">Loading competition status...</p>
                   )}
                 </CardContent>
               </Card>
@@ -1452,109 +1459,65 @@ const Admin = () => {
                     Competition Control
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
+                <CardContent className="p-6">
+                  <div className="grid gap-6 md:grid-cols-2">
                     <Button 
                       onClick={startCompetition}
-                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
                     >
-                      <Play className="h-5 w-5" />
-                      <span className="font-semibold text-sm">Start Competition</span>
+                      <Play className="h-6 w-6" />
+                      <span className="font-semibold">Start Competition</span>
                       <span className="text-xs opacity-90">Begin Round 1</span>
                     </Button>
                     <Button 
                       onClick={advanceRound}
-                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
                     >
-                      <RefreshCw className="h-5 w-5" />
-                      <span className="font-semibold text-sm">Advance Round</span>
-                      <span className="text-xs opacity-90">Next round</span>
+                      <RefreshCw className="h-6 w-6" />
+                      <span className="font-semibold">Advance Round</span>
+                      <span className="text-xs opacity-90">Move to next round</span>
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Competition Reset */}
-              <Card className="card-enhanced border-red-200">
+              <Card className="card-enhanced border-red-500/30">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-red-600">
                     <AlertTriangle className="h-5 w-5" />
-                    Competition Reset
+                    Competition Reset - All Users
                   </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    This will reset ALL users' portfolios, positions, and transactions. Use with caution!
+                  </p>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <Label>Starting Cash Amount</Label>
+                <CardContent className="p-6">
+                  <div className="space-y-6">
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold">Starting Cash Amount (₹)</Label>
                         <Input
                           type="number"
                           value={resetOptions.startingCash}
-                          onChange={(e) => setResetOptions({...resetOptions, startingCash: parseInt(e.target.value) || 100000})}
-                          placeholder="100000"
+                          onChange={(e) => setResetOptions({...resetOptions, startingCash: parseInt(e.target.value) || 500000})}
+                          placeholder="500000"
+                          className="h-12 text-lg"
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Default: ₹5,00,000 per participant
+                        </p>
                       </div>
                       <div className="flex items-end">
                         <Button 
                           onClick={resetCompetition}
                           variant="destructive"
-                          className="w-full h-12"
+                          className="w-full h-16 text-lg font-semibold"
                         >
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Reset Competition
+                          <RotateCcw className="h-5 w-5 mr-2" />
+                          Reset All Competition Data
                         </Button>
                       </div>
-                    </div>
-                    
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={resetOptions.resetPortfolios}
-                          onChange={(e) => setResetOptions({...resetOptions, resetPortfolios: e.target.checked})}
-                        />
-                        <span className="text-sm">Reset Portfolios</span>
-                      </label>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={resetOptions.resetPositions}
-                          onChange={(e) => setResetOptions({...resetOptions, resetPositions: e.target.checked})}
-                        />
-                        <span className="text-sm">Reset Positions</span>
-                      </label>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={resetOptions.resetOrders}
-                          onChange={(e) => setResetOptions({...resetOptions, resetOrders: e.target.checked})}
-                        />
-                        <span className="text-sm">Reset Orders</span>
-                      </label>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={resetOptions.resetMessages}
-                          onChange={(e) => setResetOptions({...resetOptions, resetMessages: e.target.checked})}
-                        />
-                        <span className="text-sm">Reset Messages</span>
-                      </label>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={resetOptions.resetNews}
-                          onChange={(e) => setResetOptions({...resetOptions, resetNews: e.target.checked})}
-                        />
-                        <span className="text-sm">Reset News</span>
-                      </label>
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={resetOptions.resetRounds}
-                          onChange={(e) => setResetOptions({...resetOptions, resetRounds: e.target.checked})}
-                        />
-                        <span className="text-sm">Reset Rounds</span>
-                      </label>
                     </div>
                   </div>
                 </CardContent>
