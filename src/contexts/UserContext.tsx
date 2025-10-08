@@ -27,19 +27,21 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export const useUser = () => {
+function useUser() {
   const context = useContext(UserContext);
   if (context === undefined) {
     throw new Error('useUser must be used within a UserProvider');
   }
   return context;
-};
+}
+
+export { useUser };
 
 interface UserProviderProps {
   children: React.ReactNode;
 }
 
-export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
+function UserProvider({ children }: UserProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [roles, setRoles] = useState<UserRole[]>([]);
@@ -154,4 +156,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       {children}
     </UserContext.Provider>
   );
-};
+}
+
+export { UserProvider };
