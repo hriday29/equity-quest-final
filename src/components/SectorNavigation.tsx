@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Building2, Zap, DollarSign, Activity } from "lucide-react";
 import { sectors } from "@/data/nifty50Assets";
+import { priceUpdateService, PriceUpdateEvent } from "@/services/priceUpdateService";
 
 interface Asset {
   id: string;
@@ -34,9 +35,17 @@ const SectorNavigation = ({ onAssetSelect, selectedAsset }: SectorNavigationProp
   const [sectorData, setSectorData] = useState<SectorData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [priceUpdateSubscription, setPriceUpdateSubscription] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSectorData();
+    initializePriceUpdates();
+    
+    return () => {
+      if (priceUpdateSubscription) {
+        priceUpdateService.unsubscribe(priceUpdateSubscription);
+      }
+    };
   }, []);
 
   const fetchSectorData = async () => {
@@ -93,6 +102,55 @@ const SectorNavigation = ({ onAssetSelect, selectedAsset }: SectorNavigationProp
       setLoading(false);
     }
   };
+
+  const initializePriceUpdates = useCallback(async () => {
+    try {
+      await priceUpdateService.initialize();
+      
+      const subscriptionId = priceUpdateService.subscribe((update: PriceUpdateEvent) => {
+        // Update sector data with new price
+        setSectorData(prevSectorData => {
+          return prevSectorData.map(sector => {
+            const updatedAssets = sector.assets.map(asset => {
+              if (asset.id === update.assetId) {
+                return {
+                  ...asset,
+                  current_price: update.newPrice
+                };
+              }
+              return asset;
+            });
+
+            // Recalculate sector statistics
+            const totalValue = updatedAssets.reduce((sum, asset) => sum + asset.current_price, 0);
+            const avgChange = updatedAssets.reduce((sum, asset) => {
+              const change = ((asset.current_price - asset.previous_close) / asset.previous_close) * 100;
+              return sum + change;
+            }, 0) / updatedAssets.length;
+
+            const sortedByChange = [...updatedAssets].sort((a, b) => {
+              const changeA = ((a.current_price - a.previous_close) / a.previous_close) * 100;
+              const changeB = ((b.current_price - b.previous_close) / b.previous_close) * 100;
+              return changeB - changeA;
+            });
+
+            return {
+              ...sector,
+              assets: updatedAssets,
+              totalValue,
+              avgChange,
+              topGainer: sortedByChange[0],
+              topLoser: sortedByChange[sortedByChange.length - 1]
+            };
+          });
+        });
+      });
+
+      setPriceUpdateSubscription(subscriptionId);
+    } catch (error) {
+      console.error('Error initializing price updates:', error);
+    }
+  }, []);
 
   const getSectorIcon = (sector: string) => {
     switch (sector) {
@@ -208,10 +266,10 @@ const SectorNavigation = ({ onAssetSelect, selectedAsset }: SectorNavigationProp
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
+                          <span className="text-sm font-medium transition-all duration-300">
                             ₹{asset.current_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
-                          <span className={`text-xs ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`text-xs font-medium transition-all duration-300 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {change >= 0 ? '+' : ''}{change.toFixed(2)}%
                           </span>
                         </div>

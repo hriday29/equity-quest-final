@@ -15,6 +15,9 @@ import { nifty50Assets } from "@/data/nifty50Assets";
 import { competitionResetService, ResetOptions } from "@/services/competitionReset";
 import { simpleResetService } from "@/services/simpleReset";
 import { blackSwanEventService } from "@/services/blackSwanEvent";
+import { initialDataFetchService } from "@/services/initialDataFetch";
+import { priceNoiseService } from "@/services/priceNoiseService";
+import { priceUpdateService } from "@/services/priceUpdateService";
 import MaintenanceModeToggle from "@/components/MaintenanceModeToggle";
 
 interface Asset {
@@ -81,9 +84,12 @@ const Admin = () => {
     startingCash: 500000, // ₹5,00,000 default
     resetRounds: false // Competition rounds are NOT reset - only user data is cleared
   });
+  const [isFetchingInitialData, setIsFetchingInitialData] = useState(false);
+  const [noiseStats, setNoiseStats] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
+    initializeServices();
 
     const assetsChannel = supabase
       .channel('admin-assets')
@@ -96,6 +102,95 @@ const Admin = () => {
       supabase.removeChannel(assetsChannel);
     };
   }, []);
+
+  const initializeServices = async () => {
+    try {
+      // Initialize price update service
+      await priceUpdateService.initialize();
+      
+      // Update noise stats
+      updateNoiseStats();
+      
+      // Set up interval to update noise stats
+      const interval = setInterval(updateNoiseStats, 5000);
+      
+      return () => clearInterval(interval);
+    } catch (error) {
+      console.error('Error initializing services:', error);
+    }
+  };
+
+  const updateNoiseStats = () => {
+    const stats = priceNoiseService.getNoiseStats();
+    setNoiseStats(stats);
+  };
+
+  const fetchInitialNifty50Data = async () => {
+    try {
+      setIsFetchingInitialData(true);
+      toast.loading("Fetching initial NIFTY 50 data from yFinance...", { id: "fetch-initial-data" });
+      
+      const result = await initialDataFetchService.fetchInitialNifty50Data();
+      
+      if (result.success) {
+        const successCount = result.results.filter(r => r.success).length;
+        const failureCount = result.results.filter(r => !r.success).length;
+        
+        toast.success(
+          `Initial data fetch completed! ${successCount} assets loaded, ${failureCount} failed.`,
+          { id: "fetch-initial-data" }
+        );
+        
+        // Refresh assets list
+        await fetchAssets();
+      } else {
+        toast.error("Failed to fetch initial data. Please try again.", { id: "fetch-initial-data" });
+      }
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+      toast.error("Error fetching initial data. Please check console for details.", { id: "fetch-initial-data" });
+    } finally {
+      setIsFetchingInitialData(false);
+    }
+  };
+
+  const startNoiseFluctuation = async () => {
+    try {
+      await priceNoiseService.startNoiseFluctuation();
+      toast.success("Price noise fluctuation started!");
+      updateNoiseStats();
+    } catch (error) {
+      console.error('Error starting noise fluctuation:', error);
+      toast.error("Failed to start noise fluctuation");
+    }
+  };
+
+  const stopNoiseFluctuation = () => {
+    try {
+      priceNoiseService.stopNoiseFluctuation();
+      toast.success("Price noise fluctuation stopped!");
+      updateNoiseStats();
+    } catch (error) {
+      console.error('Error stopping noise fluctuation:', error);
+      toast.error("Failed to stop noise fluctuation");
+    }
+  };
+
+  const checkInitialDataStatus = async () => {
+    try {
+      const hasData = await initialDataFetchService.hasInitialDataBeenFetched();
+      const assetCount = await initialDataFetchService.getAssetCount();
+      
+      if (hasData) {
+        toast.info(`Initial data already exists. ${assetCount} assets in database.`);
+      } else {
+        toast.info("No initial data found. You can fetch NIFTY 50 data now.");
+      }
+    } catch (error) {
+      console.error('Error checking initial data status:', error);
+      toast.error("Error checking initial data status");
+    }
+  };
 
   const fetchData = async () => {
     await Promise.all([
@@ -1448,6 +1543,103 @@ const Admin = () => {
                   ) : (
                     <p className="text-center text-muted-foreground py-4">Loading competition status...</p>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Initial Data Management */}
+              <Card className="card-enhanced border-blue-500/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-primary" />
+                    Initial Data Management
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Fetch NIFTY 50 stock data from yFinance with 1-month historical data and technical fundamentals
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Button 
+                      onClick={fetchInitialNifty50Data}
+                      disabled={isFetchingInitialData}
+                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                    >
+                      {isFetchingInitialData ? (
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Database className="h-5 w-5" />
+                      )}
+                      <span className="font-semibold">
+                        {isFetchingInitialData ? 'Fetching...' : 'Fetch NIFTY 50 Data'}
+                      </span>
+                      <span className="text-xs opacity-90">From yFinance API</span>
+                    </Button>
+                    <Button 
+                      onClick={checkInitialDataStatus}
+                      variant="outline"
+                      className="h-16 flex flex-col items-center justify-center gap-2"
+                    >
+                      <Target className="h-5 w-5" />
+                      <span className="font-semibold">Check Status</span>
+                      <span className="text-xs opacity-90">View current data</span>
+                    </Button>
+                    <div className="h-16 flex flex-col items-center justify-center gap-2 p-4 bg-muted/50 rounded-lg border">
+                      <div className="text-sm font-medium">Assets in DB</div>
+                      <div className="text-2xl font-bold text-primary">{assets.length}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Price Noise Management */}
+              <Card className="card-enhanced border-purple-500/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    Price Noise Management
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Control realistic price fluctuations (±0.5% every 3-5 seconds) for all stocks
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={startNoiseFluctuation}
+                          disabled={noiseStats?.isRunning}
+                          className="flex-1 h-12 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Start Noise
+                        </Button>
+                        <Button 
+                          onClick={stopNoiseFluctuation}
+                          disabled={!noiseStats?.isRunning}
+                          variant="destructive"
+                          className="flex-1 h-12"
+                        >
+                          <Pause className="h-4 w-4 mr-2" />
+                          Stop Noise
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="p-2 bg-muted/50 rounded text-center">
+                          <div className="font-semibold">Status</div>
+                          <div className={`text-xs ${noiseStats?.isRunning ? 'text-green-600' : 'text-red-600'}`}>
+                            {noiseStats?.isRunning ? 'RUNNING' : 'STOPPED'}
+                          </div>
+                        </div>
+                        <div className="p-2 bg-muted/50 rounded text-center">
+                          <div className="font-semibold">Assets</div>
+                          <div className="text-xs">{noiseStats?.assetCount || 0}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
