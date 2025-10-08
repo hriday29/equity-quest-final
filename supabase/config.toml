@@ -1,4 +1,4 @@
-project_id = "obdgpxemirjitdptzdox"
+project_id = "xwbglzotucstypcuekow"
 
 [api]
 enabled = true
@@ -10,7 +10,7 @@ max_rows = 1000
 [db]
 port = 54322
 shadow_port = 54320
-major_version = 15
+major_version = 17
 
 [functions.fetch-yfinance-data]
 verify_jwt = false
