@@ -12,6 +12,7 @@ import Messages from "./pages/Messages";
 import TransactionHistory from "./pages/TransactionHistory";
 import Admin from "./pages/Admin";
 import MarketAnalysis from "./pages/MarketAnalysis";
+import TeamManagement from "./pages/TeamManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -24,17 +25,18 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <MaintenanceMode>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/market" element={<ProtectedRoute><MarketAnalysis /></ProtectedRoute>} />
-            <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+                 <Routes>
+                   <Route path="/" element={<Index />} />
+                   <Route path="/auth" element={<Auth />} />
+                   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                   <Route path="/market" element={<ProtectedRoute><MarketAnalysis /></ProtectedRoute>} />
+                   <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+                   <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+                   <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
+                   <Route path="/teams" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
+                   <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
+                   <Route path="*" element={<NotFound />} />
+                 </Routes>
         </MaintenanceMode>
       </BrowserRouter>
     </TooltipProvider>
