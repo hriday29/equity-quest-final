@@ -252,5 +252,3 @@ Distributed under the MIT License.
   <i>“The Apex Investors’ Gauntlet isn’t just a simulation — it’s a test of conviction.”</i><br/>
   🦅 <b>Equity Quest</b> · Institutional-grade Trading Simulation Platform
 </p>
-
-## 📊 Data Flow Architecture
