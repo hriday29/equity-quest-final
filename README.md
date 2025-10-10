@@ -39,8 +39,14 @@
 ---
 
 ## 🎯 Project Overview
-**Equity Quest** is an institutional-grade mock-trading competition simulator.  
-It reproduces real-world markets with **live prices**, **advanced orders**, **risk control**, and **competitive scoring**.
+**Equity Quest** is a next-generation mock stock trading competition platform that simulates real-world financial markets with institutional-level precision.
+It challenges participants to navigate volatility, misinformation, and risk through real-time trading, advanced order types, and dynamic competition mechanics.
+
+Built with **React, TypeScript, and Supabase**, Equity Quest delivers a seamless, data-driven trading experience featuring live price feeds, margin management, and real-time leaderboards.
+Each player competes through three escalating rounds — from fundamental analysis to chaotic macroeconomic shocks — earning scores based on both profitability and risk-adjusted performance (Sortino Ratio).
+
+Designed for **educational institutions, finance clubs, and investment leagues**, the platform blends gamification, analytics, and financial strategy to teach participants the art of conviction-based investing under pressure.
+
 
 ### ✨ Highlights
 - ⚡ Real-time order execution & live feeds  
