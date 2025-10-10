@@ -33,9 +33,8 @@
 13. [Competition Mechanics](#-competition-mechanics)
 14. [UI / UX Design System](#-uiux-components)
 15. [Performance & Security](#-performance--security)
-16. [Data Flow Architecture](#-data-flow-architecture)
-17. [Development & Deployment](#-development--deployment)
-18. [License](#-license)
+16. [Development & Deployment](#-development--deployment)
+17. [License](#-license)
 
 ---
 
