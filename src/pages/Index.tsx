@@ -2,175 +2,168 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { TrendingUp } from "lucide-react";
+import { motion, useAnimation } from "framer-motion";
+import { ArrowRight, BrainCircuit, ShieldCheck, Trophy, Layers } from "lucide-react";
+
+// This is a placeholder for a dynamic, animated chart.
+// For a real implementation, you could use a library like Recharts or D3
+// to create a live, animated SVG chart here.
+const HeroBackgroundChart = () => (
+  <div className="absolute inset-0 z-0 opacity-15">
+    <svg width="100%" height="100%" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M-28.5 492.833C100.167 404.167 334.3 260.5 504 363C673.7 465.5 726.5 639.5 901.5 650C1076.5 660.5 1205 492.833 1302 429.5C1399 366.167 1494 341.333 1539 332.5" stroke="url(#paint0_linear_10_2)" strokeWidth="8" />
+      <defs>
+        <linearGradient id="paint0_linear_10_2" x1="504" y1="233" x2="1076.5" y2="799.5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="hsl(var(--primary))" />
+          <stop offset="1" stopColor="hsl(var(--primary))" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+);
+
+const FeatureCard = ({ icon, title, text, delay }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 30 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.6, delay, ease: "easeOut" }}
+    viewport={{ once: true }}
+    className="relative p-8 overflow-hidden bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl"
+  >
+    <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-primary/20 blur-3xl rounded-full"></div>
+    <div className="relative z-10">
+      <div className="flex items-center justify-center w-12 h-12 mb-6 bg-gradient-to-br from-primary/30 to-primary/20 rounded-xl">
+        {icon}
+      </div>
+      <h3 className="text-xl font-bold text-neutral-50 mb-2">{title}</h3>
+      <p className="text-neutral-400 leading-relaxed">{text}</p>
+    </div>
+  </motion.div>
+);
 
 const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard");
-      }
+      if (session) navigate("/dashboard");
     });
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-primary/10 relative overflow-hidden">
-      {/* Animated Background Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20"></div>
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
-      
-      {/* Hero Section */}
-      <div className="container relative mx-auto px-4 py-24">
-        <div className="max-w-5xl mx-auto text-center space-y-12 animate-fade-in">
-          {/* Logo with Enhanced Glow */}
-          <div className="flex justify-center mb-12">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-primary/30 blur-3xl rounded-full group-hover:bg-primary/40 transition-all duration-500"></div>
-              <div className="absolute inset-0 bg-gradient-radial from-primary/20 via-transparent to-transparent blur-2xl animate-pulse"></div>
-              <div className="relative bg-gradient-to-br from-primary/10 via-background/50 to-primary/5 p-12 rounded-full border-2 border-primary/30 shadow-2xl shadow-primary/20 group-hover:border-primary/50 transition-all duration-300">
-                <TrendingUp className="h-32 w-32 text-primary drop-shadow-[0_0_20px_hsl(var(--primary)/0.5)]" />
-              </div>
-            </div>
+    <div className="bg-black text-neutral-200 antialiased">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10">
+        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2 text-xl font-bold">
+            <Layers className="text-primary h-6 w-6" />
+            Equity Quest
           </div>
-          
-          {/* Title Section with Enhanced Typography */}
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <h1 className="text-7xl md:text-8xl font-black tracking-tight">
-                <span className="bg-gradient-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent drop-shadow-2xl">
-                  Equity Quest
-                </span>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => navigate("/auth")}>Sign In</Button>
+            <Button onClick={() => navigate("/auth")} className="group bg-primary hover:bg-primary/90 text-primary-foreground">
+              Enter the Arena <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        {/* --- Hero Section --- */}
+        <section className="relative h-screen flex items-center justify-center text-center overflow-hidden pt-16">
+          <HeroBackgroundChart />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/80 to-black"></div>
+          <div className="relative z-10 container mx-auto px-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-neutral-400">
+                The Architect is Human.
               </h1>
-              <div className="h-1 w-32 mx-auto bg-gradient-to-r from-transparent via-primary to-transparent"></div>
-            </div>
-            <p className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
-              The Apex Investors' <span className="text-primary">Gauntlet</span>
-            </p>
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto font-light leading-relaxed">
-              India's premier institutional-grade mock trading competition. 
-              Experience real market dynamics with sophisticated analytics and real-time execution.
-            </p>
+              <p className="mt-6 max-w-3xl mx-auto text-lg md:text-xl text-neutral-300 leading-relaxed">
+                This is not a simulation against an algorithm. It's a high-stakes gauntlet against a live, human market-maker. Your intellect, your strategy, your nerve—tested in real-time.
+              </p>
+              <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+                <Button size="lg" onClick={() => navigate("/auth")} className="group text-lg px-8 py-7 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20">
+                  Accept the Challenge <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                <Button size="lg" variant="outline" className="text-lg px-8 py-7 border-white/20 hover:bg-white/5">
+                  Learn More
+                </Button>
+              </div>
+            </motion.div>
           </div>
+        </section>
 
-          {/* Enhanced Stats Cards */}
-          <div className="grid md:grid-cols-3 gap-6 mt-16">
-            <div className="group card-enhanced p-8 space-y-3 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="text-5xl font-black text-primary">₹5L</div>
-                <div className="text-sm font-medium text-muted-foreground mt-2">Initial Capital</div>
-                <div className="text-xs text-muted-foreground/60">Per Participant</div>
-              </div>
+        {/* --- Features Section --- */}
+        <section className="py-24 md:py-32">
+          <div className="container mx-auto px-6">
+            <div className="text-center max-w-3xl mx-auto">
+              <h2 className="text-4xl md:text-5xl font-bold tracking-tighter">An Institutional-Grade Arsenal</h2>
+              <p className="mt-4 text-lg text-neutral-400">
+                Wield the tools of a professional. Compete on a platform built for elite performance.
+              </p>
             </div>
-            <div className="group card-enhanced p-8 space-y-3 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="text-5xl font-black text-primary">50+</div>
-                <div className="text-sm font-medium text-muted-foreground mt-2">NIFTY 50 Assets</div>
-                <div className="text-xs text-muted-foreground/60">Blue-Chip Stocks</div>
-              </div>
-            </div>
-            <div className="group card-enhanced p-8 space-y-3 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="text-5xl font-black text-primary">Live</div>
-                <div className="text-sm font-medium text-muted-foreground mt-2">Market Data</div>
-                <div className="text-xs text-muted-foreground/60">Real-Time Updates</div>
-              </div>
+            <div className="mt-20 grid md:grid-cols-3 gap-8">
+              <FeatureCard
+                icon={<BrainCircuit className="w-6 h-6 text-primary" />}
+                title="Human-Driven Volatility"
+                text="The market moves when the Organizer makes it move. React to manufactured shocks, insider tips, and narrative-driven events."
+                delay={0.1}
+              />
+              <FeatureCard
+                icon={<ShieldCheck className="w-6 h-6 text-primary" />}
+                title="Advanced Risk Protocols"
+                text="Utilize market, limit, and stop-loss orders. Your portfolio is monitored with institutional-grade margin and exposure limits."
+                delay={0.2}
+              />
+              <FeatureCard
+                icon={<Trophy className="w-6 h-6 text-primary" />}
+                title="Performance Analytics"
+                text="It's not just about profit. A weighted scoring system featuring the Sortino Ratio measures your risk-adjusted return."
+                delay={0.3}
+              />
             </div>
           </div>
+        </section>
 
-          {/* Enhanced CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mt-16">
-            <Button 
-              size="lg" 
-              onClick={() => navigate("/auth")} 
-              className="group relative text-lg px-12 py-7 font-semibold overflow-hidden hover-scale"
+        {/* --- Final CTA --- */}
+        <section className="py-24">
+          <div className="container mx-auto px-6 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              viewport={{ once: true }}
             >
-              <span className="relative z-10">Enter Competition</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-primary group-hover:scale-110 transition-transform"></div>
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              onClick={() => navigate("/auth")} 
-              className="text-lg px-12 py-7 font-semibold border-2 hover:bg-primary/5 hover-scale"
-            >
-              Sign In
-            </Button>
+              <h2 className="text-4xl md:text-6xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-neutral-400">
+                Prove Your Alpha.
+              </h2>
+              <p className="mt-4 text-lg text-neutral-400 max-w-2xl mx-auto">
+                The competition is waiting. The market is listening. Your legacy starts now.
+              </p>
+              <div className="mt-10">
+                <Button size="lg" onClick={() => navigate("/auth")} className="group text-lg px-8 py-7 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20">
+                  Enter the Arena
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      </main>
+
+      {/* --- Footer --- */}
+      <footer className="border-t border-white/10 mt-20">
+        <div className="container mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center text-sm text-neutral-500">
+          <p>&copy; {new Date().getFullYear()} Equity Quest. All Rights Reserved.</p>
+          <div className="flex gap-6 mt-4 md:mt-0">
+            <a href="#" className="hover:text-primary transition-colors">Terms</a>
+            <a href="#" className="hover:text-primary transition-colors">Privacy</a>
           </div>
         </div>
-
-        {/* Features Section with Enhanced Design */}
-        <div className="relative max-w-7xl mx-auto mt-32">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Enterprise-Grade Features
-              </span>
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Professional trading tools for serious competitors
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="group card-enhanced p-8 space-y-4 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <TrendingUp className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-bold text-xl mb-2">Advanced Orders</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Execute sophisticated trading strategies with market, limit, and stop-loss orders
-                </p>
-              </div>
-            </div>
-
-            <div className="group card-enhanced p-8 space-y-4 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <TrendingUp className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-bold text-xl mb-2">Risk Analytics</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Monitor position limits, margin requirements, and sector exposure in real-time
-                </p>
-              </div>
-            </div>
-
-            <div className="group card-enhanced p-8 space-y-4 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <TrendingUp className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-bold text-xl mb-2">Live Rankings</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Track your performance against competitors with dynamic leaderboards
-                </p>
-              </div>
-            </div>
-
-            <div className="group card-enhanced p-8 space-y-4 hover:border-primary/50 transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <TrendingUp className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-bold text-xl mb-2">Market Intelligence</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Stay informed with real-time news, events, and market-moving announcements
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      </footer>
     </div>
   );
 };
