@@ -69,15 +69,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="bg-primary/10 p-2 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-primary" />
-              </div>
+              <img
+                src="/equity-quest-logo.png"
+                alt="Equity Quest Logo"
+                className="h-10 w-10 object-contain" // adjust size as needed
+              />
               <div>
                 <h1 className="text-xl font-bold">Equity Quest</h1>
                 <p className="text-xs text-muted-foreground">Trading Platform</p>
               </div>
             </Link>
-
             <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
