@@ -5,22 +5,29 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, BrainCircuit, ShieldCheck, Trophy, Layers, LineChart, TrendingUp, Newspaper } from "lucide-react";
 
-// --- Animated Stock Ticker ---
+// --- Animated Stock Ticker (Task 1 Update) ---
 const StockTicker = () => {
+  // Added more stocks to make the ticker feel more populated
   const stocks = [
     { symbol: "NIFTY", price: "23,845.75", change: "+0.87%" },
     { symbol: "RELIANCE", price: "2,745.60", change: "-0.42%" },
     { symbol: "TCS", price: "3,815.20", change: "+1.12%" },
-    { symbol: "HDFC", price: "1,715.30", change: "+0.23%" },
+    { symbol: "HDFC BANK", price: "1,715.30", change: "+0.23%" },
     { symbol: "INFY", price: "1,625.80", change: "-0.15%" },
+    { symbol: "ICICI BANK", price: "1,150.90", change: "+1.55%" },
     { symbol: "SBIN", price: "725.40", change: "+0.78%" },
+    { symbol: "HINDUNILVR", price: "2,550.00", change: "-0.05%" },
+    { symbol: "BHARTIARTL", price: "1,050.25", change: "+2.10%" },
+    { symbol: "ITC", price: "435.80", change: "-0.30%" },
   ];
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 overflow-hidden border-t border-white/10 bg-black/40 backdrop-blur-sm z-20">
+    // Changed `absolute` to `fixed` to make the ticker stick to the bottom during scroll
+    <div className="fixed bottom-0 left-0 right-0 overflow-hidden border-t border-white/10 bg-black/40 backdrop-blur-sm z-20">
       <motion.div
         animate={{ x: ["0%", "-100%"] }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        // Increased duration for a smoother scroll with more items
+        transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
         className="flex gap-12 py-3 px-6 whitespace-nowrap text-sm text-neutral-300"
       >
         {[...stocks, ...stocks].map((s, i) => (
@@ -120,7 +127,6 @@ const Index = () => {
               transition={{ duration: 0.8, ease: "easeOut" }}
             >
               <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-[1.1] pb-10 bg-clip-text text-transparent bg-gradient-to-b from-white to-neutral-400">
-
                 Equity Quest
               </h1>
               <p className="mt-2 text-xl text-primary/80 font-semibold tracking-wide">
@@ -139,9 +145,10 @@ const Index = () => {
               </div>
             </motion.div>
 
-            {/* Mini Stats Row */}
+            {/* Mini Stats Row (Task 2 Update) */}
             <motion.div
-              className="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center"
+              // Added background, blur, border, and padding to create a styled container
+              className="mt-20 max-w-4xl mx-auto bg-black/30 backdrop-blur-lg border border-white/10 rounded-2xl p-8 grid grid-cols-2 sm:grid-cols-4 gap-y-8 gap-x-4 text-center"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.4 }}
@@ -165,9 +172,6 @@ const Index = () => {
               </div>
             </motion.div>
           </div>
-
-          {/* Live Stock Ticker */}
-          <StockTicker />
         </section>
 
         {/* --- Feature Section --- */}
@@ -250,7 +254,8 @@ const Index = () => {
       </main>
 
       {/* --- Footer --- */}
-      <footer className="border-t border-white/10 mt-20">
+      <footer className="border-t border-white/10 mt-20 pb-12 md:pb-0"> 
+      {/* Added bottom padding to prevent overlap with fixed ticker on mobile */}
         <div className="container mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center text-sm text-neutral-500">
           <p>&copy; {new Date().getFullYear()} Equity Quest. All Rights Reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
@@ -259,6 +264,9 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      {/* This is the fixed stock ticker component */}
+      <StockTicker />
     </div>
   );
 };
