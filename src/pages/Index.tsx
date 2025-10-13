@@ -114,7 +114,7 @@ const Index = () => {
         </div>
       </header>
 
-      <main>
+  <main>
         {/* --- Hero Section --- */}
         <section className="relative h-screen flex flex-col items-center justify-center text-center overflow-hidden pt-16">
           <HeroBackgroundChart />
@@ -254,7 +254,7 @@ const Index = () => {
       </main>
 
       {/* --- Footer --- */}
-      <footer className="border-t border-white/10 mt-20 pb-12 md:pb-0"> 
+  <footer className="border-t border-white/10 mt-20 pb-32 md:pb-32"> 
       {/* Added bottom padding to prevent overlap with fixed ticker on mobile */}
         <div className="container mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center text-sm text-neutral-500">
           <p>&copy; {new Date().getFullYear()} Equity Quest. All Rights Reserved.</p>
