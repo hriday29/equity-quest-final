@@ -15,6 +15,8 @@ import MarketAnalysis from "./pages/MarketAnalysis";
 import TeamManagement from "./pages/TeamManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +37,8 @@ const App = () => (
                    <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
                    <Route path="/teams" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
                    <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
+                   <Route path="/terms" element={<Terms />} />
+                   <Route path="/privacy" element={<Privacy />} />
                    <Route path="*" element={<NotFound />} />
                  </Routes>
         </MaintenanceMode>

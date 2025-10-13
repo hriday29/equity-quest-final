@@ -259,8 +259,8 @@ const Index = () => {
         <div className="container mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center text-sm text-neutral-500">
           <p>&copy; {new Date().getFullYear()} Equity Quest. All Rights Reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
-            <a href="#" className="hover:text-primary transition-colors">Terms</a>
-            <a href="#" className="hover:text-primary transition-colors">Privacy</a>
+            <a href="/terms" className="hover:text-primary transition-colors">Terms</a>
+            <a href="/privacy" className="hover:text-primary transition-colors">Privacy</a>
           </div>
         </div>
       </footer>
