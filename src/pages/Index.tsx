@@ -139,7 +139,7 @@ const Index = () => {
                 <Button size="lg" onClick={() => navigate("/auth")} className="group text-lg px-8 py-7 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20">
                   Accept the Challenge <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <Button size="lg" variant="outline" className="text-lg px-8 py-7 border-white/20 hover:bg-white/5">
+                <Button size="lg" variant="outline" className="text-lg px-8 py-7 border-white/20 hover:bg-white/5" onClick={() => navigate("/learn-more") }>
                   Learn More
                 </Button>
               </div>

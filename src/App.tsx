@@ -17,6 +17,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import LearnMore from "./pages/LearnMore";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
                    <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
                    <Route path="/terms" element={<Terms />} />
                    <Route path="/privacy" element={<Privacy />} />
+                   <Route path="/learn-more" element={<LearnMore />} />
                    <Route path="*" element={<NotFound />} />
                  </Routes>
         </MaintenanceMode>
