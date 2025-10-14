@@ -1,0 +1,25 @@
+project_id = "xwbglzotucstypcuekow"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[functions.fetch-yfinance-data]
+verify_jwt = false
+
+[functions.background-price-noise]
+verify_jwt = false
+
+[functions.execute-event]
+verify_jwt = false
+
+[functions.check-margins]
+verify_jwt = false
