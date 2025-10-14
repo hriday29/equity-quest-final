@@ -173,21 +173,35 @@ const Dashboard = () => {
   const calculateRealTimePortfolio = () => {
     if (!portfolio || !positions.length || !assets.length) return;
 
-    let totalPositionsValue = 0;
-      const updatedPositions = positions.map(position => {
-        // Find current asset price from the assets array
-        const currentAsset = assets.find(asset => asset.id === position.assets.id);
-        const currentPrice = currentAsset ? currentAsset.current_price : position.assets.current_price;
-      
-      // Calculate current value and P&L with latest price
-      const currentValue = position.quantity * currentPrice;
-      const profitLoss = position.quantity * (currentPrice - position.average_price);
-      
-      totalPositionsValue += currentValue;
+    let totalLongValue = 0;  // Value of long positions
+    let totalShortValue = 0; // Value of short positions (liability)
+    
+    const updatedPositions = positions.map(position => {
+      // Find current asset price from the assets array
+      const currentAsset = assets.find(asset => asset.id === position.assets.id);
+      const currentPrice = currentAsset ? currentAsset.current_price : position.assets.current_price;
+    
+      let positionValue: number;
+      let profitLoss: number;
+
+      if (position.is_short) {
+        // For short positions:
+        // - We received cash when we sold: quantity * average_price (already in cash balance)
+        // - We owe shares worth: quantity * current_price (this is a liability)
+        positionValue = position.quantity * currentPrice; // Current value of what we owe
+        profitLoss = position.quantity * (position.average_price - currentPrice);
+        totalShortValue += positionValue; // Add to liability
+      } else {
+        // For long positions:
+        // - We own shares worth: quantity * current_price
+        positionValue = position.quantity * currentPrice; // Current value of what we own
+        profitLoss = position.quantity * (currentPrice - position.average_price);
+        totalLongValue += positionValue; // Add to assets
+      }
 
       return {
         ...position,
-        current_value: currentValue,
+        current_value: positionValue,
         profit_loss: profitLoss,
         assets: {
           ...position.assets,
@@ -196,8 +210,8 @@ const Dashboard = () => {
       };
     });
 
-    // Calculate total portfolio value
-    const totalPortfolioValue = totalPositionsValue + portfolio.cash_balance;
+    // Calculate total portfolio value: Cash + Long Assets - Short Liabilities
+    const totalPortfolioValue = portfolio.cash_balance + totalLongValue - totalShortValue;
     const initialValue = 500000; // Starting capital
     const profitLoss = totalPortfolioValue - initialValue;
     const profitLossPercentage = (profitLoss / initialValue) * 100;
