@@ -459,6 +459,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
       </div>
 
       {/* Enhanced Charts */}
+      {/*
       <Card className="card-enhanced border-2 border-primary/20 bg-gradient-to-br from-background to-muted/20">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -542,7 +543,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                   </div>
                 ) : (
                   <div className="relative">
-                    {/* Chart Background Pattern */}
+                    
                     <div className="absolute inset-0 opacity-5">
                       <div className="w-full h-full bg-gradient-to-br from-primary/10 to-transparent rounded-lg"></div>
                     </div>
@@ -569,7 +570,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                       </AreaChart>
                     </ResponsiveContainer>
                     
-                    {/* Live indicator overlay */}
+                    
                     {isLive && (
                       <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-600 rounded-full text-xs font-medium border border-green-500/20 animate-pulse">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
@@ -581,7 +582,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                 )}
               </div>
               
-              {/* Price Statistics */}
+              
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center p-3 bg-muted/30 rounded-lg border border-border/50">
                   <div className="text-xs text-muted-foreground mb-1">Current</div>
@@ -602,6 +603,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
           </div>
         </CardContent>
       </Card>
+      */}
 
       {/* Additional Info */}
       <Card className="card-enhanced">
