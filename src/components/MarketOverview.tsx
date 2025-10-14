@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { priceUpdateService, PriceUpdateEvent } from "@/services/priceUpdateService";
 
 interface Asset {
   id: string;
@@ -20,15 +21,56 @@ interface MarketOverviewProps {
 
 const MarketOverview = ({ assets, priceChanges }: MarketOverviewProps) => {
   const [sectorPerformance, setSectorPerformance] = useState<Record<string, { avg: number; count: number }>>({});
+  const [liveAssets, setLiveAssets] = useState<Asset[]>(assets);
+  const [priceUpdateSubscription, setPriceUpdateSubscription] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLiveAssets(assets);
+  }, [assets]);
 
   useEffect(() => {
     calculateSectorPerformance();
-  }, [assets]);
+  }, [liveAssets]);
+
+  useEffect(() => {
+    initializePriceUpdates();
+    
+    return () => {
+      if (priceUpdateSubscription) {
+        priceUpdateService.unsubscribe(priceUpdateSubscription);
+      }
+    };
+  }, []);
+
+  const initializePriceUpdates = useCallback(async () => {
+    try {
+      await priceUpdateService.initialize();
+      
+      const subscriptionId = priceUpdateService.subscribe((update: PriceUpdateEvent) => {
+        setLiveAssets(prevAssets => {
+          return prevAssets.map(asset => {
+            if (asset.id === update.assetId) {
+              return {
+                ...asset,
+                current_price: update.newPrice
+              };
+            }
+            return asset;
+          });
+        });
+      });
+
+      setPriceUpdateSubscription(subscriptionId);
+      console.log('MarketOverview: Price updates initialized');
+    } catch (error) {
+      console.error('MarketOverview: Error initializing price updates:', error);
+    }
+  }, []);
 
   const calculateSectorPerformance = () => {
     const sectors: Record<string, { total: number; count: number }> = {};
     
-    assets.forEach(asset => {
+    liveAssets.forEach(asset => {
       if (asset.sector && asset.previous_close) {
         const change = ((asset.current_price - asset.previous_close) / asset.previous_close) * 100;
         if (!sectors[asset.sector]) {
@@ -55,7 +97,7 @@ const MarketOverview = ({ assets, priceChanges }: MarketOverviewProps) => {
     return ((current - previous) / previous) * 100;
   };
 
-  const topGainers = assets
+  const topGainers = liveAssets
     .map(asset => ({
       ...asset,
       change: getPriceChange(asset.current_price, asset.previous_close)
@@ -63,7 +105,7 @@ const MarketOverview = ({ assets, priceChanges }: MarketOverviewProps) => {
     .sort((a, b) => b.change - a.change)
     .slice(0, 5);
 
-  const topLosers = assets
+  const topLosers = liveAssets
     .map(asset => ({
       ...asset,
       change: getPriceChange(asset.current_price, asset.previous_close)
@@ -80,7 +122,7 @@ const MarketOverview = ({ assets, priceChanges }: MarketOverviewProps) => {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Assets</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{assets.length}</div>
+            <div className="text-2xl font-bold">{liveAssets.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Stocks & Commodities</p>
           </CardContent>
         </Card>

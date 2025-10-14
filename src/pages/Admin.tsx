@@ -123,6 +123,9 @@ const Admin = () => {
   const updateNoiseStats = () => {
     const stats = priceNoiseService.getNoiseStats();
     setNoiseStats(stats);
+    
+    // Check and restart if needed
+    priceNoiseService.checkAndRestart();
   };
 
   const fetchInitialNifty50Data = async () => {
@@ -158,7 +161,22 @@ const Admin = () => {
     try {
       await priceNoiseService.startNoiseFluctuation();
       toast.success("Price noise fluctuation started!");
+      
+      // Update stats immediately and set up monitoring
       updateNoiseStats();
+      
+      // Set up a monitoring interval to ensure it stays running
+      const monitoringInterval = setInterval(() => {
+        const stats = priceNoiseService.getNoiseStats();
+        if (!stats.isRunning && priceNoiseService.getNoiseConfig().isEnabled) {
+          console.warn("Noise service stopped unexpectedly, restarting...");
+          priceNoiseService.startNoiseFluctuation();
+        }
+      }, 10000); // Check every 10 seconds
+      
+      // Store interval ID for cleanup (you might want to store this in state)
+      (window as any).noiseMonitoringInterval = monitoringInterval;
+      
     } catch (error) {
       console.error('Error starting noise fluctuation:', error);
       toast.error("Failed to start noise fluctuation");
@@ -167,6 +185,12 @@ const Admin = () => {
 
   const stopNoiseFluctuation = () => {
     try {
+      // Clear monitoring interval
+      if ((window as any).noiseMonitoringInterval) {
+        clearInterval((window as any).noiseMonitoringInterval);
+        delete (window as any).noiseMonitoringInterval;
+      }
+      
       priceNoiseService.stopNoiseFluctuation();
       toast.success("Price noise fluctuation stopped!");
       updateNoiseStats();
@@ -661,7 +685,7 @@ const Admin = () => {
         category: "Market Alert",
         round: 1,
         mechanics: {
-          affected_assets: ["BHARTI", "JIO", "VODAFONE"],
+          affected_assets: ["BHARTIARTL"],
           open_gap: -0.15,
           drift: -0.05,
           drift_duration: 20
@@ -676,7 +700,7 @@ const Admin = () => {
         category: "Market Alert",
         round: 1,
         mechanics: {
-          affected_assets: ["HDFC", "ICICI", "SBI", "AXIS"],
+          affected_assets: ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK"],
           open_gap: -0.08,
           drift: -0.03,
           drift_duration: 20
@@ -691,7 +715,7 @@ const Admin = () => {
         category: "Market Alert",
         round: 2,
         mechanics: {
-          affected_assets: ["TCS", "INFY", "WIPRO", "HCL"],
+          affected_assets: ["TCS", "INFY", "WIPRO", "HCLTECH"],
           open_gap: 0.12,
           drift: 0.08,
           drift_duration: 30,
@@ -710,7 +734,7 @@ const Admin = () => {
         category: "Market Alert",
         round: 2,
         mechanics: {
-          affected_assets: ["GOLD", "SILVER", "COPPER", "STEEL"],
+          affected_assets: ["GOLD", "SILVER", "COPPER"],
           open_gap: 0.10,
           drift: 0.06,
           drift_duration: 30,
@@ -726,7 +750,7 @@ const Admin = () => {
         category: "Corporate News",
         round: 2,
         mechanics: {
-          affected_assets: ["RELIANCE", "TATA", "ADANI"],
+          affected_assets: ["RELIANCE", "TATAMOTORS"],
           open_gap: 0,
           drift: 0,
           drift_duration: 0,
@@ -742,7 +766,7 @@ const Admin = () => {
         category: "Policy Alert",
         round: 3,
         mechanics: {
-          affected_assets: ["HDFC", "ICICI", "SBI", "AXIS", "RELIANCE", "TCS"],
+          affected_assets: ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "RELIANCE", "TCS"],
           open_gap: -0.12,
           drift: -0.08,
           drift_duration: 30
@@ -757,7 +781,7 @@ const Admin = () => {
         category: "Geopolitical Alert",
         round: 3,
         mechanics: {
-          affected_assets: ["RELIANCE", "ONGC", "COAL", "DEFENSE"],
+          affected_assets: ["RELIANCE", "ONGC"],
           open_gap: -0.10,
           drift: -0.06,
           drift_duration: 30
@@ -772,7 +796,7 @@ const Admin = () => {
         category: "Policy Update",
         round: 3,
         mechanics: {
-          affected_assets: ["RELIANCE", "TCS", "HDFC", "INFY"],
+          affected_assets: ["RELIANCE", "TCS", "HDFCBANK", "INFY"],
           open_gap: -0.08,
           drift: 0.04,
           drift_duration: 30,

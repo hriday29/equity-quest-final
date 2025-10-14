@@ -62,6 +62,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [priceChanges, setPriceChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const [competitionStatus, setCompetitionStatus] = useState<string>("not_started");
+  
+  // Real-time calculated portfolio values
+  const [calculatedPortfolio, setCalculatedPortfolio] = useState<Portfolio | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -101,6 +104,11 @@ const Dashboard = () => {
       supabase.removeChannel(competitionChannel);
     };
   }, []);
+
+  // Recalculate portfolio values whenever assets, positions, or portfolio data changes
+  useEffect(() => {
+    calculateRealTimePortfolio();
+  }, [assets, positions, portfolio]);
 
   const fetchData = async () => {
     await Promise.all([fetchPortfolio(), fetchPositions(), fetchAssets(), fetchNews(), fetchCompetitionStatus()]);
@@ -156,6 +164,51 @@ const Dashboard = () => {
     }
 
     setPositions(data || []);
+  };
+
+  // Calculate real-time portfolio values based on current asset prices
+  // This ensures P&L updates immediately when asset prices change
+  const calculateRealTimePortfolio = () => {
+    if (!portfolio || !positions.length || !assets.length) return;
+
+    let totalPositionsValue = 0;
+      const updatedPositions = positions.map(position => {
+        // Find current asset price from the assets array
+        const currentAsset = assets.find(asset => asset.id === position.assets.id);
+        const currentPrice = currentAsset ? currentAsset.current_price : position.assets.current_price;
+      
+      // Calculate current value and P&L with latest price
+      const currentValue = position.quantity * currentPrice;
+      const profitLoss = position.quantity * (currentPrice - position.average_price);
+      
+      totalPositionsValue += currentValue;
+
+      return {
+        ...position,
+        current_value: currentValue,
+        profit_loss: profitLoss,
+        assets: {
+          ...position.assets,
+          current_price: currentPrice
+        }
+      };
+    });
+
+    // Calculate total portfolio value
+    const totalPortfolioValue = totalPositionsValue + portfolio.cash_balance;
+    const initialValue = 500000; // Starting capital
+    const profitLoss = totalPortfolioValue - initialValue;
+    const profitLossPercentage = (profitLoss / initialValue) * 100;
+
+    setCalculatedPortfolio({
+      ...portfolio,
+      total_value: totalPortfolioValue,
+      profit_loss: profitLoss,
+      profit_loss_percentage: profitLossPercentage
+    });
+
+    // Update positions with real-time values
+    setPositions(updatedPositions);
   };
 
   const fetchAssets = async () => {
@@ -334,7 +387,7 @@ const Dashboard = () => {
               <PieChart className="h-4 w-4 text-primary pulse-live" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold animate-fade-in">₹{portfolio?.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div className="text-2xl font-bold animate-fade-in">₹{(calculatedPortfolio || portfolio)?.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             </CardContent>
           </Card>
 
@@ -344,38 +397,44 @@ const Dashboard = () => {
               <Wallet className="h-4 w-4 text-primary pulse-live" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold animate-fade-in">₹{portfolio?.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div className="text-2xl font-bold animate-fade-in">₹{(calculatedPortfolio || portfolio)?.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             </CardContent>
           </Card>
 
-          <Card className={`card-enhanced ${portfolio && portfolio.profit_loss >= 0 ? 'glow-success' : 'glow-danger'}`}>
+          <Card className={`card-enhanced ${(calculatedPortfolio || portfolio) && (calculatedPortfolio || portfolio)!.profit_loss >= 0 ? 'glow-success' : 'glow-danger'}`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Profit/Loss</CardTitle>
-              {portfolio && portfolio.profit_loss >= 0 ? (
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                Profit/Loss
+                {calculatedPortfolio && <div className="h-1.5 w-1.5 rounded-full bg-green-500 pulse-live"></div>}
+              </CardTitle>
+              {(calculatedPortfolio || portfolio) && (calculatedPortfolio || portfolio)!.profit_loss >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-profit pulse-live" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-loss pulse-live" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold animate-fade-in ${portfolio && portfolio.profit_loss >= 0 ? 'text-profit' : 'text-loss'}`}>
-                ₹{portfolio?.profit_loss.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              <div className={`text-2xl font-bold animate-fade-in ${(calculatedPortfolio || portfolio) && (calculatedPortfolio || portfolio)!.profit_loss >= 0 ? 'text-profit' : 'text-loss'}`}>
+                ₹{(calculatedPortfolio || portfolio)?.profit_loss.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`card-enhanced ${portfolio && portfolio.profit_loss_percentage >= 0 ? 'glow-success' : 'glow-danger'}`}>
+          <Card className={`card-enhanced ${(calculatedPortfolio || portfolio) && (calculatedPortfolio || portfolio)!.profit_loss_percentage >= 0 ? 'glow-success' : 'glow-danger'}`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Return %</CardTitle>
-              {portfolio && portfolio.profit_loss_percentage >= 0 ? (
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                Return %
+                {calculatedPortfolio && <div className="h-1.5 w-1.5 rounded-full bg-green-500 pulse-live"></div>}
+              </CardTitle>
+              {(calculatedPortfolio || portfolio) && (calculatedPortfolio || portfolio)!.profit_loss_percentage >= 0 ? (
                 <ArrowUpRight className="h-4 w-4 text-profit pulse-live" />
               ) : (
                 <ArrowDownRight className="h-4 w-4 text-loss pulse-live" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold animate-fade-in ${portfolio && portfolio.profit_loss_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {portfolio?.profit_loss_percentage.toFixed(2)}%
+              <div className={`text-2xl font-bold animate-fade-in ${(calculatedPortfolio || portfolio) && (calculatedPortfolio || portfolio)!.profit_loss_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {(calculatedPortfolio || portfolio)?.profit_loss_percentage.toFixed(2)}%
               </div>
             </CardContent>
           </Card>

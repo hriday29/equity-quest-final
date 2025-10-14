@@ -14,7 +14,8 @@ import {
   ArrowLeft,
   Search,
   Activity,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { priceUpdateService, PriceUpdateEvent } from "@/services/priceUpdateService";
@@ -56,6 +57,20 @@ const MarketAnalysis = () => {
       }
     };
   }, []);
+
+  // Re-initialize price updates when component becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !priceUpdateSubscription) {
+        initializePriceUpdates();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [priceUpdateSubscription]);
 
   const fetchAssets = async () => {
     try {
@@ -99,6 +114,12 @@ const MarketAnalysis = () => {
 
   const initializePriceUpdates = useCallback(async () => {
     try {
+      // Clean up existing subscription if any
+      if (priceUpdateSubscription) {
+        priceUpdateService.unsubscribe(priceUpdateSubscription);
+        setPriceUpdateSubscription(null);
+      }
+
       await priceUpdateService.initialize();
       
       const subscriptionId = priceUpdateService.subscribe((update: PriceUpdateEvent) => {
@@ -129,10 +150,11 @@ const MarketAnalysis = () => {
       });
 
       setPriceUpdateSubscription(subscriptionId);
+      console.log('Price updates initialized for MarketAnalysis');
     } catch (error) {
       console.error('Error initializing price updates:', error);
     }
-  }, [selectedAsset]);
+  }, [selectedAsset, priceUpdateSubscription]);
 
   const handleAssetSelect = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -155,16 +177,28 @@ const MarketAnalysis = () => {
               Explore sectors and analyze individual stocks with detailed charts and metrics
             </p>
           </div>
-          {selectedAsset && (
-            <Button 
-              variant="outline" 
-              onClick={handleBackToSectors}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Sectors
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {!priceUpdateSubscription && (
+              <Button 
+                variant="outline" 
+                onClick={initializePriceUpdates}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Reconnect
+              </Button>
+            )}
+            {selectedAsset && (
+              <Button 
+                variant="outline" 
+                onClick={handleBackToSectors}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Sectors
+              </Button>
+            )}
+          </div>
         </div>
 
         {!selectedAsset ? (

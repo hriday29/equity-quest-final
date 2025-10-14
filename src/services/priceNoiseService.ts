@@ -86,9 +86,9 @@ export class PriceNoiseService {
 
     console.log('Stopping price noise fluctuation system...');
     
-    // Clear all intervals
-    this.intervals.forEach((interval, assetId) => {
-      clearInterval(interval);
+    // Clear all intervals and timeouts
+    this.intervals.forEach((timeoutId, assetId) => {
+      clearTimeout(timeoutId);
     });
     this.intervals.clear();
 
@@ -173,7 +173,8 @@ export class PriceNoiseService {
    * Applies noise fluctuation to a specific asset
    */
   private async applyNoiseFluctuation(asset: { id: string; symbol: string; current_price: number }): Promise<void> {
-    if (!this.noiseConfig.isEnabled) {
+    if (!this.noiseConfig.isEnabled || !this.isRunning) {
+      console.log(`Noise fluctuation skipped for ${asset.symbol}: service not enabled or not running`);
       return;
     }
 
@@ -336,10 +337,10 @@ export class PriceNoiseService {
    * Removes an asset from the noise system
    */
   removeAsset(assetId: string): void {
-    // Clear interval for this asset
-    const interval = this.intervals.get(assetId);
-    if (interval) {
-      clearInterval(interval);
+    // Clear timeout for this asset
+    const timeoutId = this.intervals.get(assetId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
       this.intervals.delete(assetId);
     }
 
@@ -364,6 +365,22 @@ export class PriceNoiseService {
       config: { ...this.noiseConfig },
       activeIntervals: this.intervals.size
     };
+  }
+
+  /**
+   * Checks if the noise service is healthy and restarts if needed
+   */
+  checkAndRestart(): void {
+    if (this.isRunning && this.noiseConfig.isEnabled) {
+      // Check if we have active intervals for all assets
+      if (this.intervals.size < this.assets.length) {
+        console.warn(`Noise service has fewer active intervals (${this.intervals.size}) than assets (${this.assets.length}). Restarting...`);
+        this.stopNoiseFluctuation();
+        setTimeout(() => {
+          this.startNoiseFluctuation();
+        }, 1000);
+      }
+    }
   }
 }
 
