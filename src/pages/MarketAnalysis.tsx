@@ -61,8 +61,12 @@ const MarketAnalysis = () => {
   // Re-initialize price updates when component becomes visible again
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && !priceUpdateSubscription) {
-        initializePriceUpdates();
+      if (!document.hidden) {
+        // Always refresh data when component becomes visible (handles reset scenarios)
+        fetchAssets();
+        if (!priceUpdateSubscription) {
+          initializePriceUpdates();
+        }
       }
     };
 
@@ -169,7 +173,7 @@ const MarketAnalysis = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2 text-foreground">
               <BarChart3 className="h-8 w-8 text-primary" />
               Market Analysis
             </h1>

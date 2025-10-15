@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,8 +67,8 @@ const Admin = () => {
   const [roundStatus, setRoundStatus] = useState<string>("not_started");
   const [teamMonitoring, setTeamMonitoring] = useState<TeamMonitoring[]>([]);
   const [priceChangePercentage, setPriceChangePercentage] = useState("");
-  const [competitionStatus, setCompetitionStatus] = useState<any>(null);
-  const [blackSwanStatus, setBlackSwanStatus] = useState<any>(null);
+  const [competitionStatus, setCompetitionStatus] = useState<unknown>(null);
+  const [blackSwanStatus, setBlackSwanStatus] = useState<unknown>(null);
   const [resetOptions, setResetOptions] = useState<ResetOptions>({
     resetPortfolios: true,
     resetPositions: true,
@@ -85,57 +85,30 @@ const Admin = () => {
     resetRounds: false // Competition rounds are NOT reset - only user data is cleared
   });
   const [isFetchingInitialData, setIsFetchingInitialData] = useState(false);
-  const [noiseStats, setNoiseStats] = useState<any>(null);
+  const [noiseStats, setNoiseStats] = useState<unknown>(null);
   const [shortSellingEnabled, setShortSellingEnabled] = useState(false);
   const [shortSellingRounds, setShortSellingRounds] = useState({
     round_1: false,
     round_2: false,
     round_3: false
   });
-  const [newsItems, setNewsItems] = useState<any[]>([]);
-  useEffect(() => {
-    fetchData();
-    initializeServices();
-    fetchShortSellingStatus();
+  const [newsItems, setNewsItems] = useState<Array<{
+    id: string;
+    title: string;
+    content: string;
+    category: string | null;
+    created_at: string;
+  }>>([]);
 
-    const assetsChannel = supabase
-      .channel('admin-assets')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => {
-        fetchAssets();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(assetsChannel);
-    };
-  }, []);
-
-  const initializeServices = async () => {
-    try {
-      // Initialize price update service
-      await priceUpdateService.initialize();
-      
-      // Update noise stats
-      updateNoiseStats();
-      
-      // Set up interval to update noise stats
-      const interval = setInterval(updateNoiseStats, 5000);
-      
-      return () => clearInterval(interval);
-    } catch (error) {
-      console.error('Error initializing services:', error);
-    }
-  };
-
-  const updateNoiseStats = () => {
+  const updateNoiseStats = useCallback(() => {
     const stats = priceNoiseService.getNoiseStats();
     setNoiseStats(stats);
     
     // Check and restart if needed
     priceNoiseService.checkAndRestart();
-  };
+  }, []);
 
-  const fetchShortSellingStatus = async () => {
+  const fetchShortSellingStatus = useCallback(async () => {
     try {
       const { data: settings } = await supabase
         .from('competition_settings')
@@ -153,7 +126,233 @@ const Admin = () => {
     } catch (error) {
       console.error('Error fetching short selling status:', error);
     }
-  };
+  }, []);
+
+  const fetchAssets = useCallback(async () => {
+    const { data } = await supabase
+      .from("assets")
+      .select("*")
+      .order("symbol");
+    setAssets(data || []);
+  }, []);
+
+  const initializeSampleAssets = useCallback(async () => {
+    try {
+      // Check if assets already exist
+      const { data: existingAssets } = await supabase
+        .from("assets")
+        .select("id")
+        .limit(1);
+
+      if (existingAssets && existingAssets.length > 0) {
+        return; // Assets already exist
+      }
+
+      // Insert sample assets
+      const sampleAssets = [
+        { symbol: "RELIANCE", name: "Reliance Industries Ltd", asset_type: "stock" as const, sector: "Energy", current_price: 2500.00, previous_close: 2450.00 },
+        { symbol: "TCS", name: "Tata Consultancy Services", asset_type: "stock" as const, sector: "IT", current_price: 3500.00, previous_close: 3400.00 },
+        { symbol: "HDFC", name: "HDFC Bank Ltd", asset_type: "stock" as const, sector: "Banking", current_price: 1500.00, previous_close: 1480.00 },
+        { symbol: "INFY", name: "Infosys Ltd", asset_type: "stock" as const, sector: "IT", current_price: 1800.00, previous_close: 1750.00 },
+        { symbol: "BHARTI", name: "Bharti Airtel Ltd", asset_type: "stock" as const, sector: "Telecom", current_price: 800.00, previous_close: 820.00 },
+        { symbol: "GOLD", name: "Gold", asset_type: "commodity" as const, sector: "Commodities", current_price: 55000.00, previous_close: 54500.00 },
+        { symbol: "SILVER", name: "Silver", asset_type: "commodity" as const, sector: "Commodities", current_price: 75000.00, previous_close: 74000.00 },
+        { symbol: "NIFTY", name: "Nifty 50", asset_type: "index" as const, sector: "Index", current_price: 19500.00, previous_close: 19200.00 }
+      ];
+
+      const { error } = await supabase
+        .from("assets")
+        .insert(sampleAssets);
+
+      if (error) {
+        console.error("Error initializing sample assets:", error);
+      } else {
+        toast.success("Sample assets initialized!");
+        fetchAssets(); // Refresh the assets list
+      }
+    } catch (error) {
+      console.error("Error initializing sample assets:", error);
+    }
+  }, [fetchAssets]);
+
+  const initializeCompetitionRound = useCallback(async () => {
+    try {
+      const { error } = await supabase
+        .from("competition_rounds")
+        .insert({
+          round_number: 1,
+          status: "not_started",
+          duration_minutes: 120 // 2 hours default
+        });
+
+      if (error) {
+        console.error("Error initializing competition round:", error);
+      } else {
+        setRoundStatus("not_started");
+        toast.success("Competition round initialized!");
+        // Also initialize sample assets if they don't exist
+        await initializeSampleAssets();
+      }
+    } catch (error) {
+      console.error("Error initializing competition round:", error);
+    }
+  }, [initializeSampleAssets]);
+
+  const fetchUsers = useCallback(async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, team_code, email")
+      .order("full_name");
+    setUsers(data || []);
+  }, []);
+
+  const fetchRoundStatus = useCallback(async () => {
+    const { data } = await supabase
+      .from("competition_rounds")
+      .select("status")
+      .eq("round_number", 1)
+      .single();
+    
+    if (data) {
+      setRoundStatus(data.status);
+    } else {
+      // Initialize competition round if it doesn't exist
+      await initializeCompetitionRound();
+    }
+  }, [initializeCompetitionRound]);
+
+  const fetchTeamMonitoring = useCallback(async () => {
+    try {
+      // Get all portfolios with user info
+      const { data: portfolios } = await supabase
+        .from("portfolios")
+        .select(`
+          *,
+          profiles (
+            full_name,
+            team_code
+          )
+        `)
+        .order("total_value", { ascending: false });
+
+      if (!portfolios) return;
+
+      // Get positions for each user
+      const teamData: TeamMonitoring[] = [];
+      
+      for (let i = 0; i < portfolios.length; i++) {
+        const portfolio = portfolios[i];
+        const { data: positions } = await supabase
+          .from("positions")
+          .select(`
+            quantity,
+            current_value,
+            profit_loss,
+            assets (
+              symbol
+            )
+          `)
+          .eq("user_id", portfolio.user_id);
+
+        teamData.push({
+          user_id: portfolio.user_id,
+          full_name: portfolio.profiles?.full_name || "Unknown",
+          team_code: portfolio.profiles?.team_code || null,
+          total_value: portfolio.total_value,
+          cash_balance: portfolio.cash_balance,
+          profit_loss: portfolio.profit_loss,
+          profit_loss_percentage: portfolio.profit_loss_percentage,
+          rank: i + 1,
+          positions: positions?.map(p => ({
+            symbol: p.assets?.symbol || "",
+            quantity: p.quantity,
+            current_value: p.current_value,
+            profit_loss: p.profit_loss
+          })) || []
+        });
+      }
+
+      setTeamMonitoring(teamData);
+    } catch (error) {
+      console.error("Error fetching team monitoring data:", error);
+    }
+  }, []);
+
+  const fetchCompetitionStatus = useCallback(async () => {
+    try {
+      const status = await simpleResetService.getCompetitionStatus();
+      setCompetitionStatus(status);
+    } catch (error) {
+      console.error('Error fetching competition status:', error);
+    }
+  }, []);
+
+  const fetchBlackSwanStatus = useCallback(async () => {
+    try {
+      const status = await blackSwanEventService.getBlackSwanEventDetails();
+      setBlackSwanStatus(status);
+    } catch (error) {
+      console.error('Error fetching Black Swan status:', error);
+    }
+  }, []);
+
+  const fetchNewsItems = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("news")
+        .select("*")
+        .order("created_at", { ascending: false });
+      setNewsItems(data || []);
+    } catch (error) {
+      console.error('Error fetching news items:', error);
+    }
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    await Promise.all([
+      fetchAssets(), 
+      fetchUsers(), 
+      fetchRoundStatus(), 
+      fetchTeamMonitoring(),
+      fetchCompetitionStatus(),
+      fetchBlackSwanStatus(),
+      fetchNewsItems()
+    ]);
+  }, [fetchAssets, fetchUsers, fetchRoundStatus, fetchTeamMonitoring, fetchCompetitionStatus, fetchBlackSwanStatus, fetchNewsItems]);
+
+  const initializeServices = useCallback(async () => {
+    try {
+      // Initialize price update service
+      await priceUpdateService.initialize();
+      
+      // Update noise stats
+      updateNoiseStats();
+      
+      // Set up interval to update noise stats
+      const interval = setInterval(updateNoiseStats, 5000);
+      
+      return () => clearInterval(interval);
+    } catch (error) {
+      console.error('Error initializing services:', error);
+    }
+  }, [updateNoiseStats]);
+
+  useEffect(() => {
+    fetchData();
+    initializeServices();
+    fetchShortSellingStatus();
+
+    const assetsChannel = supabase
+      .channel('admin-assets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => {
+        fetchAssets();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(assetsChannel);
+    };
+  }, [fetchData, initializeServices, fetchAssets, fetchShortSellingStatus]);
 
   const toggleShortSelling = async () => {
     try {
@@ -181,9 +380,10 @@ const Admin = () => {
       setShortSellingRounds(shortSellingConfig);
       setShortSellingEnabled(newStatus);
       toast.success(`Short selling ${newStatus ? 'enabled' : 'disabled'} for all rounds`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to toggle short selling';
       console.error('Error toggling short selling:', error);
-      toast.error(error.message || 'Failed to toggle short selling');
+      toast.error(errorMessage);
     }
   };
 
@@ -212,9 +412,10 @@ const Admin = () => {
       
       const roundName = round.replace('round_', 'Round ');
       toast.success(`Short selling ${newRounds[round] ? 'enabled' : 'disabled'} for ${roundName}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to toggle round short selling';
       console.error('Error toggling round short selling:', error);
-      toast.error(error.message || 'Failed to toggle round short selling');
+      toast.error(errorMessage);
     }
   };
 
@@ -265,7 +466,7 @@ const Admin = () => {
       }, 10000); // Check every 10 seconds
       
       // Store interval ID for cleanup (you might want to store this in state)
-      (window as any).noiseMonitoringInterval = monitoringInterval;
+      (window as { noiseMonitoringInterval?: NodeJS.Timeout }).noiseMonitoringInterval = monitoringInterval;
       
     } catch (error) {
       console.error('Error starting noise fluctuation:', error);
@@ -276,9 +477,10 @@ const Admin = () => {
   const stopNoiseFluctuation = () => {
     try {
       // Clear monitoring interval
-      if ((window as any).noiseMonitoringInterval) {
-        clearInterval((window as any).noiseMonitoringInterval);
-        delete (window as any).noiseMonitoringInterval;
+      const windowWithInterval = window as { noiseMonitoringInterval?: NodeJS.Timeout };
+      if (windowWithInterval.noiseMonitoringInterval) {
+        clearInterval(windowWithInterval.noiseMonitoringInterval);
+        delete windowWithInterval.noiseMonitoringInterval;
       }
       
       priceNoiseService.stopNoiseFluctuation();
@@ -303,111 +505,6 @@ const Admin = () => {
     } catch (error) {
       console.error('Error checking initial data status:', error);
       toast.error("Error checking initial data status");
-    }
-  };
-
-  const fetchData = async () => {
-    await Promise.all([
-      fetchAssets(), 
-      fetchUsers(), 
-      fetchRoundStatus(), 
-      fetchTeamMonitoring(),
-      fetchCompetitionStatus(),
-      fetchBlackSwanStatus(),
-      fetchNewsItems()
-    ]);
-  };
-
-  const fetchAssets = async () => {
-    const { data } = await supabase
-      .from("assets")
-      .select("*")
-      .order("symbol");
-    setAssets(data || []);
-  };
-
-  const fetchUsers = async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name, team_code, email")
-      .order("full_name");
-    setUsers(data || []);
-  };
-
-  const fetchRoundStatus = async () => {
-    const { data } = await supabase
-      .from("competition_rounds")
-      .select("status")
-      .eq("round_number", 1)
-      .single();
-    
-    if (data) {
-      setRoundStatus(data.status);
-    } else {
-      // Initialize competition round if it doesn't exist
-      await initializeCompetitionRound();
-    }
-  };
-
-  const initializeCompetitionRound = async () => {
-    try {
-      const { error } = await supabase
-        .from("competition_rounds")
-        .insert({
-          round_number: 1,
-          status: "not_started",
-          duration_minutes: 120 // 2 hours default
-        });
-
-      if (error) {
-        console.error("Error initializing competition round:", error);
-      } else {
-        setRoundStatus("not_started");
-        toast.success("Competition round initialized!");
-        // Also initialize sample assets if they don't exist
-        await initializeSampleAssets();
-      }
-    } catch (error) {
-      console.error("Error initializing competition round:", error);
-    }
-  };
-
-  const initializeSampleAssets = async () => {
-    try {
-      // Check if assets already exist
-      const { data: existingAssets } = await supabase
-        .from("assets")
-        .select("id")
-        .limit(1);
-
-      if (existingAssets && existingAssets.length > 0) {
-        return; // Assets already exist
-      }
-
-      // Insert sample assets
-      const sampleAssets = [
-        { symbol: "RELIANCE", name: "Reliance Industries Ltd", asset_type: "stock" as const, sector: "Energy", current_price: 2500.00, previous_close: 2450.00 },
-        { symbol: "TCS", name: "Tata Consultancy Services", asset_type: "stock" as const, sector: "IT", current_price: 3500.00, previous_close: 3400.00 },
-        { symbol: "HDFC", name: "HDFC Bank Ltd", asset_type: "stock" as const, sector: "Banking", current_price: 1500.00, previous_close: 1480.00 },
-        { symbol: "INFY", name: "Infosys Ltd", asset_type: "stock" as const, sector: "IT", current_price: 1800.00, previous_close: 1750.00 },
-        { symbol: "BHARTI", name: "Bharti Airtel Ltd", asset_type: "stock" as const, sector: "Telecom", current_price: 800.00, previous_close: 820.00 },
-        { symbol: "GOLD", name: "Gold", asset_type: "commodity" as const, sector: "Commodities", current_price: 55000.00, previous_close: 54500.00 },
-        { symbol: "SILVER", name: "Silver", asset_type: "commodity" as const, sector: "Commodities", current_price: 75000.00, previous_close: 74000.00 },
-        { symbol: "NIFTY", name: "Nifty 50", asset_type: "index" as const, sector: "Index", current_price: 19500.00, previous_close: 19200.00 }
-      ];
-
-      const { error } = await supabase
-        .from("assets")
-        .insert(sampleAssets);
-
-      if (error) {
-        console.error("Error initializing sample assets:", error);
-      } else {
-        toast.success("Sample assets initialized!");
-        fetchAssets(); // Refresh the assets list
-      }
-    } catch (error) {
-      console.error("Error initializing sample assets:", error);
     }
   };
 
@@ -482,40 +579,12 @@ const Admin = () => {
       } else {
         toast.error(data.error || "Margin check failed");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to check margins");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to check margins";
+      toast.error(errorMessage);
     }
   };
 
-  const fetchCompetitionStatus = async () => {
-    try {
-      const status = await simpleResetService.getCompetitionStatus();
-      setCompetitionStatus(status);
-    } catch (error) {
-      console.error('Error fetching competition status:', error);
-    }
-  };
-
-  const fetchBlackSwanStatus = async () => {
-    try {
-      const status = await blackSwanEventService.getBlackSwanEventDetails();
-      setBlackSwanStatus(status);
-    } catch (error) {
-      console.error('Error fetching Black Swan status:', error);
-    }
-  };
-
-  const fetchNewsItems = async () => {
-    try {
-      const { data } = await supabase
-        .from("news")
-        .select("*")
-        .order("created_at", { ascending: false });
-      setNewsItems(data || []);
-    } catch (error) {
-      console.error('Error fetching news items:', error);
-    }
-  };
 
   const deleteNewsItem = async (newsId: string) => {
     try {
@@ -528,9 +597,10 @@ const Admin = () => {
 
       toast.success("News item deleted successfully!");
       fetchNewsItems();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete news item';
       console.error('Error deleting news item:', error);
-      toast.error(error.message || 'Failed to delete news item');
+      toast.error(errorMessage);
     }
   };
 
@@ -545,9 +615,10 @@ const Admin = () => {
 
       toast.success("All news items cleared successfully!");
       fetchNewsItems();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to clear news';
       console.error('Error clearing news:', error);
-      toast.error(error.message || 'Failed to clear news');
+      toast.error(errorMessage);
     }
   };
 
@@ -563,8 +634,9 @@ const Admin = () => {
       } else {
         toast.error(result.message);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to reset competition");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to reset competition";
+      toast.error(errorMessage);
     }
   };
 
@@ -578,8 +650,9 @@ const Admin = () => {
       } else {
         toast.error(result.message);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to start competition");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to start competition";
+      toast.error(errorMessage);
     }
   };
 
@@ -593,8 +666,9 @@ const Admin = () => {
       } else {
         toast.error(result.message);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to advance round");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to advance round";
+      toast.error(errorMessage);
     }
   };
 
@@ -608,8 +682,9 @@ const Admin = () => {
       } else {
         toast.error(result.message);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to trigger Black Swan event");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to trigger Black Swan event";
+      toast.error(errorMessage);
     }
   };
 
@@ -623,67 +698,12 @@ const Admin = () => {
       } else {
         toast.error(result.message);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to cancel Black Swan event");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to cancel Black Swan event";
+      toast.error(errorMessage);
     }
   };
 
-  const fetchTeamMonitoring = async () => {
-    try {
-      // Get all portfolios with user info
-      const { data: portfolios } = await supabase
-        .from("portfolios")
-        .select(`
-          *,
-          profiles (
-            full_name,
-            team_code
-          )
-        `)
-        .order("total_value", { ascending: false });
-
-      if (!portfolios) return;
-
-      // Get positions for each user
-      const teamData: TeamMonitoring[] = [];
-      
-      for (let i = 0; i < portfolios.length; i++) {
-        const portfolio = portfolios[i];
-        const { data: positions } = await supabase
-          .from("positions")
-          .select(`
-            quantity,
-            current_value,
-            profit_loss,
-            assets (
-              symbol
-            )
-          `)
-          .eq("user_id", portfolio.user_id);
-
-        teamData.push({
-          user_id: portfolio.user_id,
-          full_name: portfolio.profiles?.full_name || "Unknown",
-          team_code: portfolio.profiles?.team_code || null,
-          total_value: portfolio.total_value,
-          cash_balance: portfolio.cash_balance,
-          profit_loss: portfolio.profit_loss,
-          profit_loss_percentage: portfolio.profit_loss_percentage,
-          rank: i + 1,
-          positions: positions?.map(p => ({
-            symbol: p.assets?.symbol || "",
-            quantity: p.quantity,
-            current_value: p.current_value,
-            profit_loss: p.profit_loss
-          })) || []
-        });
-      }
-
-      setTeamMonitoring(teamData);
-    } catch (error) {
-      console.error("Error fetching team monitoring data:", error);
-    }
-  };
 
   const handleUpdatePrice = async () => {
     if (!selectedAsset || !newPrice) {
@@ -716,8 +736,9 @@ const Admin = () => {
       toast.success("Price updated successfully!");
       setNewPrice("");
       fetchAssets();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update price");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update price";
+      toast.error(errorMessage);
     }
   };
 
@@ -756,8 +777,9 @@ const Admin = () => {
       toast.success(`Price changed by ${percentage}% successfully!`);
       setPriceChangePercentage("");
       fetchAssets();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update price");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update price";
+      toast.error(errorMessage);
     }
   };
 
@@ -770,6 +792,8 @@ const Admin = () => {
       if (!eventData) {
         throw new Error("Unknown event type");
       }
+
+      console.log('Triggering event:', eventType, eventData);
 
       // Insert event into database
       const { data: event, error: eventError } = await supabase
@@ -786,17 +810,27 @@ const Admin = () => {
         .select()
         .single();
 
-      if (eventError) throw eventError;
+      if (eventError) {
+        console.error('Error creating event:', eventError);
+        throw eventError;
+      }
+
+      console.log('Event created with ID:', event.id);
 
       // Execute the event using Edge Function
       const { data: executeResult, error: executeError } = await supabase.functions.invoke('execute-event', {
         body: { eventId: event.id }
       });
 
-      if (executeError) throw executeError;
+      if (executeError) {
+        console.error('Error executing event:', executeError);
+        throw executeError;
+      }
+
+      console.log('Event execution result:', executeResult);
 
       // Publish news
-      await supabase.from("news").insert({
+      const { error: newsError } = await supabase.from("news").insert({
         title: eventData.headline,
         content: eventData.content,
         category: eventData.category,
@@ -804,10 +838,17 @@ const Admin = () => {
         is_public: true,
       });
 
+      if (newsError) {
+        console.error('Error publishing news:', newsError);
+        // Don't throw here, event was executed successfully
+      }
+
       toast.success(`${eventData.name} event triggered successfully!`);
       fetchAssets();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to trigger event");
+    } catch (error: unknown) {
+      console.error('Event trigger error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to trigger event";
+      toast.error(errorMessage);
     }
   };
 
@@ -984,8 +1025,9 @@ const Admin = () => {
       setNewsTitle("");
       setNewsContent("");
       setNewsCategory("");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to publish news");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to publish news";
+      toast.error(errorMessage);
     }
   };
 
@@ -1011,8 +1053,9 @@ const Admin = () => {
       setMessageTitle("");
       setMessageContent("");
       setMessageRecipient("");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send message");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to send message";
+      toast.error(errorMessage);
     }
   };
 
@@ -1033,8 +1076,9 @@ const Admin = () => {
 
       toast.success("Competition reset successfully! You can now start a new round.");
       fetchRoundStatus();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to reset competition");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to reset competition";
+      toast.error(errorMessage);
     }
   };
 
@@ -1080,8 +1124,9 @@ const Admin = () => {
 
       toast.success(`Round ${action}ed successfully!`);
       fetchRoundStatus();
-    } catch (error: any) {
-      toast.error(error.message || `Failed to ${action} round`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${action} round`;
+      toast.error(errorMessage);
     }
   };
 
@@ -1159,7 +1204,7 @@ const Admin = () => {
         </Card>
 
         <Tabs defaultValue="prices" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="prices">
               <DollarSign className="h-4 w-4 mr-2" />
               Prices
@@ -1183,10 +1228,6 @@ const Admin = () => {
             <TabsTrigger value="activity">
               <Settings className="h-4 w-4 mr-2" />
               Settings
-            </TabsTrigger>
-            <TabsTrigger value="competition">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Competition
             </TabsTrigger>
           </TabsList>
 
@@ -1691,30 +1732,26 @@ const Admin = () => {
                     <h4 className="font-semibold text-base">Round-Specific Controls</h4>
                     <div className="grid gap-4 md:grid-cols-3">
                       {[
-                        { round: 'round_1' as const, name: 'Round 1', description: 'The Fundamentals Floor (20 mins)', color: 'red' },
-                        { round: 'round_2' as const, name: 'Round 2', description: 'The Fog of War (30 mins)', color: 'orange' },
-                        { round: 'round_3' as const, name: 'Round 3', description: 'The Macro Meltdown (30 mins)', color: 'purple' }
-                      ].map(({ round, name, description, color }) => (
+                        { round: 'round_1' as const, name: 'Round 1', description: 'The Fundamentals Floor (20 mins)', enabledClass: 'border-red-500 bg-red-50', disabledClass: 'border-gray-200 bg-gray-50', buttonEnabledClass: 'border-red-500 text-red-600 hover:bg-red-50', buttonDisabledClass: 'bg-red-600 hover:bg-red-700 text-white' },
+                        { round: 'round_2' as const, name: 'Round 2', description: 'The Fog of War (30 mins)', enabledClass: 'border-orange-500 bg-orange-50', disabledClass: 'border-gray-200 bg-gray-50', buttonEnabledClass: 'border-orange-500 text-orange-600 hover:bg-orange-50', buttonDisabledClass: 'bg-orange-600 hover:bg-orange-700 text-white' },
+                        { round: 'round_3' as const, name: 'Round 3', description: 'The Macro Meltdown (30 mins)', enabledClass: 'border-purple-500 bg-purple-50', disabledClass: 'border-gray-200 bg-gray-50', buttonEnabledClass: 'border-purple-500 text-purple-600 hover:bg-purple-50', buttonDisabledClass: 'bg-purple-600 hover:bg-purple-700 text-white' }
+                      ].map(({ round, name, description, enabledClass, disabledClass, buttonEnabledClass, buttonDisabledClass }) => (
                         <div key={round} className={`p-4 border-2 rounded-lg ${
-                          shortSellingRounds[round] 
-                            ? `border-${color}-500 bg-${color}-50` 
-                            : 'border-gray-200 bg-gray-50'
+                          shortSellingRounds[round] ? enabledClass : disabledClass
                         }`}>
                           <div className="flex items-center justify-between mb-2">
-                            <h5 className="font-semibold">{name}</h5>
+                            <h5 className={`font-semibold ${shortSellingRounds[round] ? 'text-gray-900' : 'text-gray-700'}`}>{name}</h5>
                             <Badge variant={shortSellingRounds[round] ? "default" : "secondary"}>
                               {shortSellingRounds[round] ? 'Enabled' : 'Disabled'}
                             </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground mb-3">{description}</p>
+                          <p className={`text-xs mb-3 ${shortSellingRounds[round] ? 'text-gray-700' : 'text-gray-600'}`}>{description}</p>
                           <Button
                             onClick={() => toggleRoundShortSelling(round)}
                             variant={shortSellingRounds[round] ? "outline" : "default"}
                             size="sm"
                             className={`w-full ${
-                              shortSellingRounds[round] 
-                                ? `border-${color}-500 text-${color}-600 hover:bg-${color}-50` 
-                                : `bg-${color}-600 hover:bg-${color}-700 text-white`
+                              shortSellingRounds[round] ? buttonEnabledClass : buttonDisabledClass
                             }`}
                           >
                             {shortSellingRounds[round] ? 'Disable' : 'Enable'}
@@ -1792,194 +1829,6 @@ const Admin = () => {
                 </CardContent>
               </Card>
 
-              <Card className="card-enhanced">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-primary" />
-                    User Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {users.map((user, index) => (
-                      <div key={user.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 transition-colors animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
-                        <div>
-                          <p className="font-medium">{user.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
-                          {user.team_code && (
-                            <p className="text-xs text-muted-foreground">Team: {user.team_code}</p>
-                          )}
-                        </div>
-                        <Badge variant="default" className="badge-executed">Active</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="competition">
-            <div className="space-y-6">
-              {/* Competition Status */}
-              <Card className="card-enhanced">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    Competition Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {competitionStatus ? (
-                    <div className="grid gap-6 md:grid-cols-3">
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <p className="text-3xl font-bold text-primary">{competitionStatus.totalParticipants}</p>
-                        <p className="text-sm text-muted-foreground mt-2">Total Participants</p>
-                      </div>
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <p className="text-3xl font-bold text-green-600">
-                          ₹{competitionStatus.totalPortfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-2">Total Portfolio Value</p>
-                      </div>
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <p className="text-3xl font-bold text-blue-600">{competitionStatus.currentRound || 'Not Started'}</p>
-                        <p className="text-sm text-muted-foreground mt-2">Current Round</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-4">Loading competition status...</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Initial Data Management */}
-              <Card className="card-enhanced border-blue-500/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5 text-primary" />
-                    Initial Data Management
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Fetch NIFTY 50 stock data from yFinance with 1-month historical data and technical fundamentals
-                  </p>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <Button 
-                      onClick={fetchInitialNifty50Data}
-                      disabled={isFetchingInitialData}
-                      className="h-16 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-                    >
-                      {isFetchingInitialData ? (
-                        <RefreshCw className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <Database className="h-5 w-5" />
-                      )}
-                      <span className="font-semibold">
-                        {isFetchingInitialData ? 'Fetching...' : 'Fetch NIFTY 50 Data'}
-                      </span>
-                      <span className="text-xs opacity-90">From yFinance API</span>
-                    </Button>
-                    <Button 
-                      onClick={checkInitialDataStatus}
-                      variant="outline"
-                      className="h-16 flex flex-col items-center justify-center gap-2"
-                    >
-                      <Target className="h-5 w-5" />
-                      <span className="font-semibold">Check Status</span>
-                      <span className="text-xs opacity-90">View current data</span>
-                    </Button>
-                    <div className="h-16 flex flex-col items-center justify-center gap-2 p-4 bg-muted/50 rounded-lg border">
-                      <div className="text-sm font-medium">Assets in DB</div>
-                      <div className="text-2xl font-bold text-primary">{assets.length}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Price Noise Management */}
-              <Card className="card-enhanced border-purple-500/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-primary" />
-                    Price Noise Management
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Control realistic price fluctuations (±0.5% every 3-5 seconds) for all stocks
-                  </p>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={startNoiseFluctuation}
-                          disabled={noiseStats?.isRunning}
-                          className="flex-1 h-12 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
-                        >
-                          <Play className="h-4 w-4 mr-2" />
-                          Start Noise
-                        </Button>
-                        <Button 
-                          onClick={stopNoiseFluctuation}
-                          disabled={!noiseStats?.isRunning}
-                          variant="destructive"
-                          className="flex-1 h-12"
-                        >
-                          <Pause className="h-4 w-4 mr-2" />
-                          Stop Noise
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="p-2 bg-muted/50 rounded text-center">
-                          <div className="font-semibold">Status</div>
-                          <div className={`text-xs ${noiseStats?.isRunning ? 'text-green-600' : 'text-red-600'}`}>
-                            {noiseStats?.isRunning ? 'RUNNING' : 'STOPPED'}
-                          </div>
-                        </div>
-                        <div className="p-2 bg-muted/50 rounded text-center">
-                          <div className="font-semibold">Assets</div>
-                          <div className="text-xs">{noiseStats?.assetCount || 0}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Competition Control */}
-              <Card className="card-enhanced">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <RotateCcw className="h-5 w-5 text-primary" />
-                    Competition Control
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <Button 
-                      onClick={startCompetition}
-                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
-                    >
-                      <Play className="h-6 w-6" />
-                      <span className="font-semibold">Start Competition</span>
-                      <span className="text-xs opacity-90">Begin Round 1</span>
-                    </Button>
-                    <Button 
-                      onClick={advanceRound}
-                      className="h-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-                    >
-                      <RefreshCw className="h-6 w-6" />
-                      <span className="font-semibold">Advance Round</span>
-                      <span className="text-xs opacity-90">Move to next round</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Competition Reset */}
               <Card className="card-enhanced border-red-500/30">
                 <CardHeader>
@@ -2021,8 +1870,34 @@ const Admin = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card className="card-enhanced">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-primary" />
+                    User Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {users.map((user, index) => (
+                      <div key={user.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 transition-colors animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
+                        <div>
+                          <p className="font-medium">{user.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                          {user.team_code && (
+                            <p className="text-xs text-muted-foreground">Team: {user.team_code}</p>
+                          )}
+                        </div>
+                        <Badge variant="default" className="badge-executed">Active</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
+
         </Tabs>
       </div>
     </DashboardLayout>

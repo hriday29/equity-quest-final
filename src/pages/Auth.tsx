@@ -47,8 +47,8 @@ const Auth = () => {
 
       if (error) throw error;
       toast.success("Logged in successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to login");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to login");
     } finally {
       setLoading(false);
     }
@@ -73,8 +73,8 @@ const Auth = () => {
 
       if (error) throw error;
       toast.success("Account created! Please check your email to verify.");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create account");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to create account");
     } finally {
       setLoading(false);
     }

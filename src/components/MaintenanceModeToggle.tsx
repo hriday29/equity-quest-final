@@ -51,8 +51,8 @@ const MaintenanceModeToggle = () => {
       if (error) throw error;
 
       toast.success(`Maintenance mode ${isEnabled ? 'enabled' : 'disabled'}`);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update maintenance mode");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to update maintenance mode");
     } finally {
       setLoading(false);
     }

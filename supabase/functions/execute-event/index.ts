@@ -49,17 +49,41 @@ serve(async (req) => {
     const mechanics: EventMechanics = event.mechanics;
 
     // Get affected assets
+    console.log('Looking for assets with symbols:', mechanics.affected_assets);
     const { data: assets, error: assetsError } = await supabaseClient
       .from('assets')
       .select('*')
       .in('symbol', mechanics.affected_assets);
 
-    if (assetsError) throw assetsError;
+    if (assetsError) {
+      console.error('Error fetching assets:', assetsError);
+      throw assetsError;
+    }
+
+    console.log('Found assets:', assets?.map(a => ({ symbol: a.symbol, name: a.name })));
+
+    if (!assets || assets.length === 0) {
+      console.warn('No assets found for symbols:', mechanics.affected_assets);
+      // For special cases like black swan, we'll handle this separately
+      if (mechanics.special !== 'black_swan') {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `No assets found for symbols: ${mechanics.affected_assets.join(', ')}`,
+            updates: []
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        );
+      }
+    }
 
     const updates = [];
 
     // Apply OPEN GAP (instant price change)
-    if (mechanics.open_gap) {
+    if (mechanics.open_gap && mechanics.open_gap !== 0) {
       for (const asset of assets) {
         const oldPrice = parseFloat(asset.current_price);
         const newPrice = oldPrice * (1 + mechanics.open_gap);
@@ -90,6 +114,16 @@ serve(async (req) => {
           change: mechanics.open_gap * 100,
         });
       }
+    } else if (mechanics.open_gap === 0) {
+      // Handle events with no price impact (like red herring)
+      console.log('Event has no price impact (open_gap = 0)');
+      for (const asset of assets) {
+        updates.push({
+          symbol: asset.symbol,
+          type: 'no_impact',
+          change: 0,
+        });
+      }
     }
 
     // Mark event as executing (drift will be handled by a separate scheduled function)
@@ -106,10 +140,17 @@ serve(async (req) => {
       console.log('Executing BLACK SWAN event');
       
       // Get all stock assets
-      const { data: allStocks } = await supabaseClient
+      const { data: allStocks, error: stocksError } = await supabaseClient
         .from('assets')
         .select('*')
         .eq('asset_type', 'stock');
+
+      if (stocksError) {
+        console.error('Error fetching stocks for Black Swan:', stocksError);
+        throw stocksError;
+      }
+
+      console.log(`Found ${allStocks?.length || 0} stocks for Black Swan event`);
 
       // Apply -8% crash to all stocks
       for (const stock of allStocks || []) {
@@ -134,6 +175,12 @@ serve(async (req) => {
             fluctuation_type: 'gap',
             event_id: eventId,
           });
+
+        updates.push({
+          symbol: stock.symbol,
+          type: 'black_swan_crash',
+          change: -8,
+        });
       }
 
       // Pause competition for 90 seconds (trading halt)

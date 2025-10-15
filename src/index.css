@@ -25,7 +25,7 @@ All colors MUST be HSL.
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217 19% 15%;
-    --muted-foreground: 215 20% 70%;
+    --muted-foreground: 215 20% 85%;
 
     --accent: 217 91% 65%;
     --accent-foreground: 210 40% 98%;
@@ -61,11 +61,11 @@ All colors MUST be HSL.
     --gradient-warning: linear-gradient(135deg, hsl(38, 92%, 50%), hsl(38, 92%, 60%));
     --gradient-card: linear-gradient(135deg, hsl(222, 47%, 8%), hsl(222, 47%, 12%));
     
-    /* Enhanced Shadows */
-    --shadow-glow: 0 0 40px hsl(217 91% 65% / 0.4);
-    --shadow-card: 0 8px 32px hsl(222 47% 2% / 0.6);
-    --shadow-elevated: 0 16px 48px hsl(222 47% 2% / 0.8);
-    --shadow-inset: inset 0 2px 4px hsl(222 47% 2% / 0.3);
+    /* Enhanced Shadows - Reduced for better text readability */
+    --shadow-glow: 0 0 20px hsl(217 91% 65% / 0.2);
+    --shadow-card: 0 4px 16px hsl(222 47% 2% / 0.4);
+    --shadow-elevated: 0 8px 24px hsl(222 47% 2% / 0.5);
+    --shadow-inset: inset 0 1px 2px hsl(222 47% 2% / 0.2);
     
     /* Animation variables */
     --animation-duration: 0.3s;
@@ -80,13 +80,21 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    text-shadow: none; /* Remove any text shadows */
+  }
+
+  /* Ensure text is crisp and readable */
+  h1, h2, h3, h4, h5, h6, p, span, div {
+    text-shadow: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
 @layer components {
   /* Enhanced Card Styles */
   .card-enhanced {
-    @apply bg-gradient-to-br from-card to-card/80 backdrop-blur-sm;
+    @apply bg-gradient-to-br from-card to-card/90;
     box-shadow: var(--shadow-card);
     border: 1px solid hsl(var(--border) / 0.5);
     transition: all var(--animation-duration) var(--animation-timing);
@@ -144,17 +152,17 @@ All colors MUST be HSL.
     animation: priceDown 0.6s var(--animation-timing);
   }
 
-  /* Glow Effects */
+  /* Glow Effects - Reduced for better text readability */
   .glow-primary {
-    box-shadow: var(--shadow-glow);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.2);
   }
 
   .glow-success {
-    box-shadow: 0 0 30px hsl(var(--profit) / 0.4);
+    box-shadow: 0 0 15px hsl(var(--profit) / 0.2);
   }
 
   .glow-danger {
-    box-shadow: 0 0 30px hsl(var(--loss) / 0.4);
+    box-shadow: 0 0 15px hsl(var(--loss) / 0.2);
   }
 
   /* Pulse Animation for Live Data */
@@ -169,7 +177,7 @@ All colors MUST be HSL.
 
   /* Enhanced Input Styles */
   .input-enhanced {
-    @apply bg-input/50 border-border/50 backdrop-blur-sm;
+    @apply bg-input/80 border-border/50;
     transition: all var(--animation-duration) var(--animation-timing);
   }
 

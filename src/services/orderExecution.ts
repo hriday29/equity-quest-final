@@ -640,9 +640,10 @@ export class OrderExecutionEngine {
       if (portfolio) {
         // Total portfolio value = Cash + Long Positions - Short Positions (liabilities)
         const totalPortfolioValue = portfolio.cash_balance + totalLongValue - totalShortValue;
-        const initialValue = 500000; // Starting capital
+        // The initial value should be the starting capital (500,000)
+        const initialValue = 500000; // Starting capital amount
         const profitLoss = totalPortfolioValue - initialValue;
-        const profitLossPercentage = (profitLoss / initialValue) * 100;
+        const profitLossPercentage = initialValue > 0 ? (profitLoss / initialValue) * 100 : 0;
 
         // Update portfolio
         await supabase

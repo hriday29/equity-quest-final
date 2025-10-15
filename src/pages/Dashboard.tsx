@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/DashboardLayout";
 import CollapsibleMarketOverview from "@/components/CollapsibleMarketOverview";
@@ -68,6 +68,178 @@ const Dashboard = () => {
   // Real-time calculated portfolio values
   const [calculatedPortfolio, setCalculatedPortfolio] = useState<Portfolio | null>(null);
 
+  const fetchCompetitionStatus = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("competition_rounds")
+        .select("status")
+        .eq("round_number", 1)
+        .single();
+      
+      if (data) {
+        setCompetitionStatus(data.status);
+      }
+    } catch (error) {
+      console.error("Error fetching competition status:", error);
+    }
+  }, []);
+
+  const fetchPortfolio = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("portfolios")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching portfolio:", error);
+      return;
+    }
+
+    setPortfolio(data);
+  }, []);
+
+  const fetchPositions = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("positions")
+      .select("*, assets(*)")
+      .eq("user_id", session.user.id)
+      .gt("quantity", 0);
+
+    if (error) {
+      console.error("Error fetching positions:", error);
+      return;
+    }
+
+    setPositions(data || []);
+  }, []);
+
+  const fetchAssets = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("assets")
+      .select("*")
+      .eq("is_active", true)
+      .order("symbol");
+
+    if (error) {
+      console.error("Error fetching assets:", error);
+      return;
+    }
+
+    // Track price changes for animations
+    if (data) {
+      setAssets(prevAssets => {
+        const newPriceChanges: Record<string, 'up' | 'down' | null> = {};
+        data.forEach(asset => {
+          const prevAsset = prevAssets.find(a => a.id === asset.id);
+          if (prevAsset && prevAsset.current_price !== asset.current_price) {
+            newPriceChanges[asset.id] = asset.current_price > prevAsset.current_price ? 'up' : 'down';
+            // Clear animation after 1 second
+            setTimeout(() => {
+              setPriceChanges(prev => ({ ...prev, [asset.id]: null }));
+            }, 1000);
+          }
+        });
+        setPriceChanges(prev => ({ ...prev, ...newPriceChanges }));
+        return data;
+      });
+    }
+  }, []);
+
+  const fetchNews = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("news")
+      .select("*")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.error("Error fetching news:", error);
+      return;
+    }
+
+    setNews(data || []);
+  }, []);
+
+  // Calculate real-time portfolio values based on current asset prices
+  // This ensures P&L updates immediately when asset prices change
+  const calculateRealTimePortfolio = useCallback(() => {
+    if (!portfolio) return;
+
+    let totalLongValue = 0;  // Value of long positions
+    let totalShortValue = 0; // Value of short positions (liability)
+    let updatedPositions = positions;
+    
+    // Only process positions if they exist and assets are available
+    if (positions.length > 0 && assets.length > 0) {
+      updatedPositions = positions.map(position => {
+        // Find current asset price from the assets array
+        const currentAsset = assets.find(asset => asset.id === position.assets.id);
+        const currentPrice = currentAsset ? currentAsset.current_price : position.assets.current_price;
+      
+        let positionValue: number;
+        let profitLoss: number;
+
+        if (position.is_short) {
+          // For short positions:
+          // - We received cash when we sold: quantity * average_price (already in cash balance)
+          // - We owe shares worth: quantity * current_price (this is a liability)
+          positionValue = position.quantity * currentPrice; // Current value of what we owe
+          profitLoss = position.quantity * (position.average_price - currentPrice);
+          totalShortValue += positionValue; // Add to liability
+        } else {
+          // For long positions:
+          // - We own shares worth: quantity * current_price
+          positionValue = position.quantity * currentPrice; // Current value of what we own
+          profitLoss = position.quantity * (currentPrice - position.average_price);
+          totalLongValue += positionValue; // Add to assets
+        }
+
+        return {
+          ...position,
+          current_value: positionValue,
+          profit_loss: profitLoss,
+          assets: {
+            ...position.assets,
+            current_price: currentPrice
+          }
+        };
+      });
+    }
+
+    // Calculate total portfolio value: Cash + Long Assets - Short Liabilities
+    const totalPortfolioValue = portfolio.cash_balance + totalLongValue - totalShortValue;
+    
+    // The initial value should be the starting capital (500,000)
+    const initialValue = 500000; // Starting capital amount
+    const profitLoss = totalPortfolioValue - initialValue;
+    const profitLossPercentage = initialValue > 0 ? (profitLoss / initialValue) * 100 : 0;
+
+
+    setCalculatedPortfolio({
+      ...portfolio,
+      total_value: totalPortfolioValue,
+      profit_loss: profitLoss,
+      profit_loss_percentage: profitLossPercentage
+    });
+
+    // Update positions with real-time values only if we processed them
+    if (positions.length > 0 && assets.length > 0) {
+      setPositions(updatedPositions);
+    }
+  }, [portfolio, positions, assets]);
+
+  const fetchData = useCallback(async () => {
+    await Promise.all([fetchPortfolio(), fetchPositions(), fetchAssets(), fetchNews(), fetchCompetitionStatus()]);
+  }, [fetchPortfolio, fetchPositions, fetchAssets, fetchNews, fetchCompetitionStatus]);
+
   useEffect(() => {
     fetchData();
 
@@ -105,175 +277,13 @@ const Dashboard = () => {
       supabase.removeChannel(portfolioChannel);
       supabase.removeChannel(competitionChannel);
     };
-  }, []);
+  }, [fetchData, fetchAssets, fetchNews, fetchPortfolio, fetchCompetitionStatus]);
 
   // Recalculate portfolio values whenever assets, positions, or portfolio data changes
   useEffect(() => {
     calculateRealTimePortfolio();
-  }, [assets, positions, portfolio]);
+  }, [calculateRealTimePortfolio]);
 
-  const fetchData = async () => {
-    await Promise.all([fetchPortfolio(), fetchPositions(), fetchAssets(), fetchNews(), fetchCompetitionStatus()]);
-  };
-
-  const fetchCompetitionStatus = async () => {
-    try {
-      const { data } = await supabase
-        .from("competition_rounds")
-        .select("status")
-        .eq("round_number", 1)
-        .single();
-      
-      if (data) {
-        setCompetitionStatus(data.status);
-      }
-    } catch (error) {
-      console.error("Error fetching competition status:", error);
-    }
-  };
-
-  const fetchPortfolio = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const { data, error } = await supabase
-      .from("portfolios")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .single();
-
-    if (error) {
-      console.error("Error fetching portfolio:", error);
-      return;
-    }
-
-    setPortfolio(data);
-  };
-
-  const fetchPositions = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const { data, error } = await supabase
-      .from("positions")
-      .select("*, assets(*)")
-      .eq("user_id", session.user.id)
-      .gt("quantity", 0);
-
-    if (error) {
-      console.error("Error fetching positions:", error);
-      return;
-    }
-
-    setPositions(data || []);
-  };
-
-  // Calculate real-time portfolio values based on current asset prices
-  // This ensures P&L updates immediately when asset prices change
-  const calculateRealTimePortfolio = () => {
-    if (!portfolio || !positions.length || !assets.length) return;
-
-    let totalLongValue = 0;  // Value of long positions
-    let totalShortValue = 0; // Value of short positions (liability)
-    
-    const updatedPositions = positions.map(position => {
-      // Find current asset price from the assets array
-      const currentAsset = assets.find(asset => asset.id === position.assets.id);
-      const currentPrice = currentAsset ? currentAsset.current_price : position.assets.current_price;
-    
-      let positionValue: number;
-      let profitLoss: number;
-
-      if (position.is_short) {
-        // For short positions:
-        // - We received cash when we sold: quantity * average_price (already in cash balance)
-        // - We owe shares worth: quantity * current_price (this is a liability)
-        positionValue = position.quantity * currentPrice; // Current value of what we owe
-        profitLoss = position.quantity * (position.average_price - currentPrice);
-        totalShortValue += positionValue; // Add to liability
-      } else {
-        // For long positions:
-        // - We own shares worth: quantity * current_price
-        positionValue = position.quantity * currentPrice; // Current value of what we own
-        profitLoss = position.quantity * (currentPrice - position.average_price);
-        totalLongValue += positionValue; // Add to assets
-      }
-
-      return {
-        ...position,
-        current_value: positionValue,
-        profit_loss: profitLoss,
-        assets: {
-          ...position.assets,
-          current_price: currentPrice
-        }
-      };
-    });
-
-    // Calculate total portfolio value: Cash + Long Assets - Short Liabilities
-    const totalPortfolioValue = portfolio.cash_balance + totalLongValue - totalShortValue;
-    const initialValue = 500000; // Starting capital
-    const profitLoss = totalPortfolioValue - initialValue;
-    const profitLossPercentage = (profitLoss / initialValue) * 100;
-
-    setCalculatedPortfolio({
-      ...portfolio,
-      total_value: totalPortfolioValue,
-      profit_loss: profitLoss,
-      profit_loss_percentage: profitLossPercentage
-    });
-
-    // Update positions with real-time values
-    setPositions(updatedPositions);
-  };
-
-  const fetchAssets = async () => {
-    const { data, error } = await supabase
-      .from("assets")
-      .select("*")
-      .eq("is_active", true)
-      .order("symbol");
-
-    if (error) {
-      console.error("Error fetching assets:", error);
-      return;
-    }
-
-    // Track price changes for animations
-    if (data) {
-      setAssets(prevAssets => {
-        const newPriceChanges: Record<string, 'up' | 'down' | null> = {};
-        data.forEach(asset => {
-          const prevAsset = prevAssets.find(a => a.id === asset.id);
-          if (prevAsset && prevAsset.current_price !== asset.current_price) {
-            newPriceChanges[asset.id] = asset.current_price > prevAsset.current_price ? 'up' : 'down';
-            // Clear animation after 1 second
-            setTimeout(() => {
-              setPriceChanges(prev => ({ ...prev, [asset.id]: null }));
-            }, 1000);
-          }
-        });
-        setPriceChanges(prev => ({ ...prev, ...newPriceChanges }));
-        return data;
-      });
-    }
-  };
-
-  const fetchNews = async () => {
-    const { data, error } = await supabase
-      .from("news")
-      .select("*")
-      .eq("is_public", true)
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (error) {
-      console.error("Error fetching news:", error);
-      return;
-    }
-
-    setNews(data || []);
-  };
 
   const handlePlaceOrder = async (isBuy: boolean) => {
     if (!selectedAsset || !quantity) {
@@ -317,7 +327,7 @@ const Dashboard = () => {
           stop_price: stopPrice,
           is_buy: isBuy,
           is_short_sell: isShortSell,
-          status: "executed" as "executed",
+          status: "executed" as const,
           executed_price: result.executedPrice,
           executed_at: result.executedAt,
         }]);
@@ -331,8 +341,9 @@ const Dashboard = () => {
         console.error('Order execution failed:', result.message);
         toast.error(result.message);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to place order");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to place order";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -351,7 +362,7 @@ const Dashboard = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
               <Activity className="h-8 w-8 text-primary" />
               Trading Dashboard
             </h1>
