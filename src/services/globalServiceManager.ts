@@ -29,7 +29,7 @@ export class GlobalServiceManager {
       console.log('🚀 Initializing global services...');
       
       // Initialize price noise service
-      await this.initializePriceNoiseService();
+      // await this.initializePriceNoiseService();
       
       // Set up global price update listener
       this.setupPriceUpdateListener();
