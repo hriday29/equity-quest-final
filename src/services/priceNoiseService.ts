@@ -49,7 +49,7 @@ export class PriceNoiseService {
     }
 
     try {
-      console.log('Starting price noise fluctuation system...');
+      // Starting price noise fluctuation system
       
       // Load all assets
       await this.loadAssets();
@@ -84,7 +84,7 @@ export class PriceNoiseService {
       return;
     }
 
-    console.log('Stopping price noise fluctuation system...');
+    // Stopping price noise fluctuation system
     
     // Clear all intervals and timeouts
     this.intervals.forEach((timeoutId, assetId) => {
@@ -95,7 +95,7 @@ export class PriceNoiseService {
     this.isRunning = false;
     this.noiseConfig.isEnabled = false;
     
-    console.log('✅ Price noise fluctuation stopped');
+    // Price noise fluctuation stopped
   }
 
   /**
@@ -103,7 +103,7 @@ export class PriceNoiseService {
    */
   updateNoiseConfig(config: Partial<NoiseConfig>): void {
     this.noiseConfig = { ...this.noiseConfig, ...config };
-    console.log('Noise configuration updated:', this.noiseConfig);
+    // Noise configuration updated
   }
 
   /**
@@ -135,7 +135,7 @@ export class PriceNoiseService {
       }
 
       this.assets = data || [];
-      console.log(`Loaded ${this.assets.length} assets for noise fluctuation`);
+      // Assets loaded for noise fluctuation
       
     } catch (error) {
       console.error('Error loading assets:', error);
@@ -265,7 +265,7 @@ export class PriceNoiseService {
       // Emit custom event for real-time updates
       this.emitPriceUpdate(priceUpdate);
 
-      console.log(`📊 ${asset.symbol}: ₹${currentPrice.toFixed(2)} → ₹${newPrice.toFixed(2)} (${actualChangePercent > 0 ? '+' : ''}${actualChangePercent.toFixed(3)}%)`);
+      // Price update logged to database, no need for console spam
 
     } catch (error) {
       console.error(`Error applying noise fluctuation for ${asset.symbol}:`, error);
@@ -325,7 +325,7 @@ export class PriceNoiseService {
       // Start noise fluctuation for this asset if system is running
       if (this.isRunning) {
         this.startAssetNoise(data);
-        console.log(`Added ${data.symbol} to noise fluctuation system`);
+        // Asset added to noise fluctuation system
       }
 
     } catch (error) {

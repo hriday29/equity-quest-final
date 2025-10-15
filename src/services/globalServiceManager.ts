@@ -72,7 +72,7 @@ export class GlobalServiceManager {
 
     this.priceUpdateListener = (event: CustomEvent) => {
       const priceUpdate = event.detail;
-      console.log('📊 Global price update received:', priceUpdate);
+      // Global price update received and processed
       
       // Dispatch a more specific event for components to listen to
       const specificEvent = new CustomEvent('assetPriceUpdate', {
