@@ -73,9 +73,67 @@ const TeamManagement = () => {
     }
   };
 
+  const recalculateAllPortfolios = async () => {
+    try {
+      // Get all portfolios that need recalculation
+      const { data: portfolios, error } = await supabase
+        .from('portfolios')
+        .select('user_id, cash_balance');
+
+      if (error) throw error;
+
+      // Recalculate each portfolio with correct initial value
+      for (const portfolio of portfolios || []) {
+        // Get user's positions
+        const { data: positions } = await supabase
+          .from('positions')
+          .select('*, assets(*)')
+          .eq('user_id', portfolio.user_id);
+
+        let totalLongValue = 0;
+        let totalShortValue = 0;
+
+        if (positions && positions.length > 0) {
+          positions.forEach(position => {
+            const currentPrice = position.assets?.current_price || 0;
+            if (position.is_short) {
+              totalShortValue += position.quantity * currentPrice;
+            } else {
+              totalLongValue += position.quantity * currentPrice;
+            }
+          });
+        }
+
+        // Calculate correct portfolio values
+        const totalPortfolioValue = portfolio.cash_balance + totalLongValue - totalShortValue;
+        const initialValue = 500000; // Starting capital
+        const profitLoss = totalPortfolioValue - initialValue;
+        const profitLossPercentage = initialValue > 0 ? (profitLoss / initialValue) * 100 : 0;
+
+        // Update portfolio with correct values
+        await supabase
+          .from('portfolios')
+          .update({
+            total_value: totalPortfolioValue,
+            profit_loss: profitLoss,
+            profit_loss_percentage: profitLossPercentage,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', portfolio.user_id);
+      }
+
+      console.log('All portfolios recalculated with correct values');
+    } catch (error) {
+      console.error('Error recalculating portfolios:', error);
+    }
+  };
+
   const fetchTeams = async () => {
     try {
       setLoading(true);
+      
+      // First recalculate all portfolios to ensure correct values
+      await recalculateAllPortfolios();
       
       // Get all users with their team codes
       const { data: users, error: usersError } = await supabase

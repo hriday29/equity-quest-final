@@ -1763,6 +1763,67 @@ const Admin = () => {
                 </CardContent>
               </Card>
 
+              {/* Price Noise Controls */}
+              <Card className="card-enhanced border-purple-500/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-purple-600" />
+                    Price Noise Fluctuation
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Control automatic price fluctuations to simulate market volatility
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-lg">Noise Fluctuation</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {noiseStats && typeof noiseStats === 'object' && 'isRunning' in noiseStats && noiseStats.isRunning 
+                            ? 'Price noise fluctuation is currently active'
+                            : 'Price noise fluctuation is currently stopped'
+                          }
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={startNoiseFluctuation}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Start
+                        </Button>
+                        <Button 
+                          onClick={stopNoiseFluctuation}
+                          variant="destructive"
+                        >
+                          <Square className="h-4 w-4 mr-2" />
+                          Stop
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {noiseStats && typeof noiseStats === 'object' && (
+                      <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Status</p>
+                          <p className="font-semibold">
+                            {'isRunning' in noiseStats && noiseStats.isRunning ? 'Running' : 'Stopped'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Updates</p>
+                          <p className="font-semibold">
+                            {'updateCount' in noiseStats ? noiseStats.updateCount : 0}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Maintenance Mode Toggle */}
               <Card className="card-enhanced border-warning/50">
                 <CardHeader>
