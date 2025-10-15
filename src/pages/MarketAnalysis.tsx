@@ -274,12 +274,12 @@ const MarketAnalysis = () => {
                       </div>
                       <div className="text-sm text-muted-foreground">Market Change</div>
                     </div>
-                    <div className="text-center p-4 bg-muted/50 rounded-lg transition-all duration-300 hover:bg-muted/70">
+                    {/* <div className="text-center p-4 bg-muted/50 rounded-lg transition-all duration-300 hover:bg-muted/70">
                       <div className="text-2xl font-bold text-blue-600 transition-all duration-300">
                         ₹{(marketStats.totalValue / 10000000).toFixed(1)} Cr
                       </div>
                       <div className="text-sm text-muted-foreground">Total Market Cap</div>
-                    </div>
+                    </div> */}
                     <div className="text-center p-4 bg-muted/50 rounded-lg transition-all duration-300 hover:bg-muted/70">
                       <div className="text-2xl font-bold text-purple-600 transition-all duration-300">
                         {marketStats.activeStocks}
