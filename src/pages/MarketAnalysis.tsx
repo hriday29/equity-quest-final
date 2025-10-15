@@ -193,6 +193,13 @@ const MarketAnalysis = () => {
     setSelectedAsset(asset);
   };
 
+  const formatPrice = (price: number, assetType?: string) => {
+    if (assetType === 'commodity') {
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   const handleBackToSectors = () => {
     setSelectedAsset(null);
   };
@@ -311,7 +318,7 @@ const MarketAnalysis = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-medium transition-all duration-300">
-                              ₹{stock.current_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              {formatPrice(stock.current_price, stock.asset_type)}
                             </div>
                             <div className="text-sm text-green-600 font-medium transition-all duration-300">
                               +{change.toFixed(2)}%
@@ -352,7 +359,7 @@ const MarketAnalysis = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-medium transition-all duration-300">
-                              ₹{stock.current_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              {formatPrice(stock.current_price, stock.asset_type)}
                             </div>
                             <div className="text-sm text-red-600 font-medium transition-all duration-300">
                               {change.toFixed(2)}%

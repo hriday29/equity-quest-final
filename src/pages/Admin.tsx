@@ -837,30 +837,38 @@ const Admin = () => {
         name: "Telecom Sector Shake-up",
         number: 1,
         type: "sector_impact",
-        headline: "Telecom Sector Shake-up: Regulatory Changes Impact",
-        content: "Major regulatory changes impact telecom companies. Stock prices drop significantly across the sector as new compliance requirements increase operational costs.",
+        headline: "Reliance Jio announces an aggressive 8% tariff hike; simultaneously, the government announces a relief package for the telecom sector, reducing spectrum dues.",
+        content: "Reliance Jio's aggressive tariff hike combined with government relief package creates mixed signals for the telecom sector. Reliance benefits from tariff increase while Bharti Airtel gains from regulatory relief.",
         category: "Market Alert",
         round: 1,
         mechanics: {
-          affected_assets: ["BHARTIARTL"],
-          open_gap: -0.15,
-          drift: -0.05,
-          drift_duration: 20
+          affected_assets: ["RELIANCE", "BHARTIARTL"],
+          open_gap: 0.045, // Reliance +4.5%
+          drift: 0.015,    // Reliance +1.5% drift
+          drift_duration: 20,
+          asset_specific_impacts: {
+            "RELIANCE": { open_gap: 0.045, drift: 0.015 },
+            "BHARTIARTL": { open_gap: 0.030, drift: 0.010 }
+          }
         }
       },
       'event2_banking_divergence': {
         name: "Banking Asset Quality Divergence",
         number: 2,
         type: "sector_impact",
-        headline: "Banking Sector: Asset Quality Concerns Emerge",
-        content: "Diverging asset quality reports across major banks create uncertainty. Some banks show deteriorating loan portfolios while others maintain stability.",
+        headline: "HDFC Bank reports higher-than-expected retail loan defaults. In contrast, ICICI Bank pre-releases stellar asset quality numbers, showing NPAs at a multi-year low.",
+        content: "HDFC Bank faces asset quality concerns with higher retail loan defaults, while ICICI Bank reports excellent asset quality with NPAs at multi-year lows. This divergence creates sector-wide uncertainty.",
         category: "Market Alert",
         round: 1,
         mechanics: {
-          affected_assets: ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK"],
-          open_gap: -0.08,
-          drift: -0.03,
-          drift_duration: 20
+          affected_assets: ["HDFCBANK", "ICICIBANK"],
+          open_gap: -0.04, // HDFC Bank -4.0%
+          drift: -0.015,   // HDFC Bank -1.5% drift
+          drift_duration: 20,
+          asset_specific_impacts: {
+            "HDFCBANK": { open_gap: -0.04, drift: -0.015 },
+            "ICICIBANK": { open_gap: 0.03, drift: 0.01 }
+          }
         }
       },
       'event3_global_cues_it': {
@@ -886,16 +894,27 @@ const Admin = () => {
         name: "Commodity Supercycle Rumor",
         number: 4,
         type: "commodity_impact",
-        headline: "Commodity Supercycle Rumors Surface",
-        content: "Insider reports suggest a potential commodity supercycle. However, conflicting information creates market confusion about the actual impact.",
+        headline: "Chatter intensifies about a new commodity supercycle. Chinese demand for steel and aluminum is rumored to be surging.",
+        content: "Conflicting insider reports about commodity supercycle. Some sources confirm booming Chinese construction activity, while others suggest this is a fund pump-and-dump scheme. Market reacts with initial optimism but stalls as conflicting data emerges.",
         category: "Market Alert",
         round: 2,
         mechanics: {
-          affected_assets: ["GOLD", "SILVER", "COPPER"],
-          open_gap: 0.10,
-          drift: 0.06,
+          affected_assets: ["HINDALCO", "JSWSTEEL", "TATASTEEL", "SILVER"],
+          open_gap: 0.035, // Steel/Aluminum +3.5%
+          drift: 0.01,     // Steel/Aluminum +1.0% drift
           drift_duration: 30,
-          special: "conflicting_info"
+          special: "conflicting_info",
+          asset_specific_impacts: {
+            "HINDALCO": { open_gap: 0.035, drift: 0.01 },
+            "JSWSTEEL": { open_gap: 0.035, drift: 0.01 },
+            "TATASTEEL": { open_gap: 0.035, drift: 0.01 },
+            "SILVER": { open_gap: 0.02, drift: 0.0 }
+          },
+          market_twist: {
+            at_minute: 20,
+            change: -0.02, // Falls back -2.0% from highs
+            affected_assets: ["HINDALCO", "JSWSTEEL", "TATASTEEL", "SILVER"]
+          }
         }
       },
       'event5_red_herring': {
@@ -918,62 +937,95 @@ const Admin = () => {
         name: "RBI Policy Shock",
         number: 6,
         type: "policy_impact",
-        headline: "RBI Announces Unexpected Policy Changes",
-        content: "Reserve Bank of India announces unexpected monetary policy changes that catch markets off-guard. Interest rate adjustments impact various sectors differently.",
+        headline: "In an emergency meeting, RBI hikes repo rate by an unexpected 50 basis points.",
+        content: "RBI's unexpected 50 basis point rate hike catches markets off-guard. Banks face margin pressure while auto sector suffers from higher borrowing costs and reduced consumer spending.",
         category: "Policy Alert",
         round: 3,
         mechanics: {
-          affected_assets: ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "RELIANCE", "TCS"],
-          open_gap: -0.12,
-          drift: -0.08,
-          drift_duration: 30
+          affected_assets: ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "MARUTI", "M&M", "TATAMOTORS"],
+          open_gap: -0.04, // Banks -4.0%
+          drift: 0,
+          drift_duration: 0,
+          asset_specific_impacts: {
+            "HDFCBANK": { open_gap: -0.04, drift: 0 },
+            "ICICIBANK": { open_gap: -0.04, drift: 0 },
+            "SBIN": { open_gap: -0.04, drift: 0 },
+            "AXISBANK": { open_gap: -0.04, drift: 0 },
+            "MARUTI": { open_gap: -0.03, drift: 0 },
+            "M&M": { open_gap: -0.03, drift: 0 },
+            "TATAMOTORS": { open_gap: -0.03, drift: 0 }
+          }
         }
       },
       'event7_geopolitical': {
         name: "Geopolitical Flare-up",
         number: 7,
         type: "geopolitical",
-        headline: "Geopolitical Tensions Escalate",
-        content: "Escalating geopolitical tensions create market uncertainty. Defense and energy sectors see increased volatility as global markets react.",
+        headline: "Tensions escalate in the Middle East, threatening crude oil supply lines.",
+        content: "Escalating Middle East tensions threaten crude oil supply lines, driving energy prices higher. Safe-haven assets like gold and silver see increased demand as investors seek refuge from geopolitical uncertainty.",
         category: "Geopolitical Alert",
         round: 3,
         mechanics: {
-          affected_assets: ["RELIANCE", "ONGC"],
-          open_gap: -0.10,
-          drift: -0.06,
-          drift_duration: 30
+          affected_assets: ["ONGC", "RELIANCE", "GOLD", "SILVER"],
+          open_gap: 0.05, // ONGC, Reliance +5.0%
+          drift: 0,
+          drift_duration: 0,
+          asset_specific_impacts: {
+            "ONGC": { open_gap: 0.05, drift: 0 },
+            "RELIANCE": { open_gap: 0.05, drift: 0 },
+            "GOLD": { open_gap: 0.03, drift: 0 },
+            "SILVER": { open_gap: 0.015, drift: 0 }
+          }
         }
       },
       'event8_policy_rumor': {
         name: "Evolving Policy Rumor",
         number: 8,
         type: "policy_evolution",
-        headline: "Policy Rumor Update: Partial Reversal",
-        content: "Initial policy rumors are partially reversed as more information becomes available. Market reacts to the evolving situation with mixed signals.",
+        headline: "Sources report the government is finalizing a massive expansion to the auto scrappage policy.",
+        content: "Initial reports suggest major auto scrappage policy expansion, but government later clarifies it's only a proposal under early review. Auto sector sees initial surge followed by partial reversal as clarity emerges.",
         category: "Policy Update",
         round: 3,
         mechanics: {
-          affected_assets: ["RELIANCE", "TCS", "HDFCBANK", "INFY"],
-          open_gap: -0.08,
-          drift: 0.04,
-          drift_duration: 30,
-          special: "partial_reversal"
+          affected_assets: ["MARUTI", "M&M", "TATAMOTORS", "BAJAJ-AUTO", "HEROMOTOCO"],
+          open_gap: 0.04, // Autos +4%
+          drift: 0,
+          drift_duration: 0,
+          special: "partial_reversal",
+          market_twist: {
+            at_minute: 20,
+            change: -0.03, // Autos give back -3%
+            affected_assets: ["MARUTI", "M&M", "TATAMOTORS", "BAJAJ-AUTO", "HEROMOTOCO"]
+          }
         }
       },
       'event9_black_swan': {
         name: "THE BLACK SWAN",
         number: 9,
         type: "black_swan",
-        headline: "BLACK SWAN EVENT: Market Crisis",
-        content: "Unprecedented market crisis unfolds with trading halt. All sectors affected by sudden market correction. Blue-chip stocks show partial recovery after initial crash.",
+        headline: "Breaking: A major Indian bank has defaulted on its international debt obligations. Global ratings agencies are putting India's sovereign rating on a negative watch.",
+        content: "Major Indian bank defaults on international debt, triggering sovereign rating downgrade watch. NIFTY 50 halts trading for 2 minutes, then crashes 8%. Gold and silver spike as safe havens. Blue-chip stocks partially recover after 10 minutes.",
         category: "Market Crisis",
         round: 3,
         mechanics: {
-          affected_assets: ["ALL_STOCKS"],
-          open_gap: -0.08,
+          affected_assets: ["ALL_STOCKS", "GOLD", "SILVER"],
+          open_gap: -0.08, // All stocks -8%
           drift: 0,
           drift_duration: 0,
-          special: "black_swan"
+          special: "black_swan",
+          asset_specific_impacts: {
+            "GOLD": { open_gap: 0.05, drift: 0 }, // Gold +5%
+            "SILVER": { open_gap: 0.03, drift: 0 } // Silver +3%
+          },
+          trading_halt: {
+            duration_minutes: 2,
+            affected_assets: ["NIFTY"]
+          },
+          blue_chip_recovery: {
+            at_minute: 10,
+            change: 0.02, // +2% recovery
+            affected_assets: ["RELIANCE", "HINDUNILVR", "INFY", "TCS", "HDFCBANK", "ICICIBANK", "ITC", "BHARTIARTL"]
+          }
         }
       }
     };

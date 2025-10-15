@@ -268,7 +268,11 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
     }
   };
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number, assetType?: string) => {
+    if (assetType === 'commodity') {
+      // For commodities, use $ symbol and different formatting
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
     return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
@@ -384,7 +388,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
             </div>
             <div className="text-right">
               <div className="flex items-center gap-2 mb-1">
-                <div className="text-3xl font-bold tracking-tight">{formatPrice(currentPrice)}</div>
+                <div className="text-3xl font-bold tracking-tight">{formatPrice(currentPrice, asset.asset_type)}</div>
                 {isLive && (
                   <div className="flex items-center gap-1 px-2 py-1 bg-green-500/10 text-green-600 rounded-full text-xs font-medium">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -399,7 +403,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                   <ArrowDownRight className="h-4 w-4" />
                 )}
                 <span className="font-medium">
-                  {isPositive ? '+' : ''}{formatPrice(change)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
+                  {isPositive ? '+' : ''}{formatPrice(change, asset.asset_type)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
                 </span>
               </div>
             </div>
@@ -415,7 +419,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Previous Close</span>
             </div>
-            <div className="text-xl font-bold mt-1">{formatPrice(asset.previous_close)}</div>
+            <div className="text-xl font-bold mt-1">{formatPrice(asset.previous_close, asset.asset_type)}</div>
           </CardContent>
         </Card>
 
@@ -426,7 +430,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                 <TrendingUp className="h-4 w-4 text-green-500" />
                 <span className="text-sm text-muted-foreground">52W High</span>
               </div>
-              <div className="text-xl font-bold mt-1">{formatPrice(asset.week_52_high)}</div>
+              <div className="text-xl font-bold mt-1">{formatPrice(asset.week_52_high, asset.asset_type)}</div>
             </CardContent>
           </Card>
         )}
@@ -438,7 +442,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                 <TrendingDown className="h-4 w-4 text-red-500" />
                 <span className="text-sm text-muted-foreground">52W Low</span>
               </div>
-              <div className="text-xl font-bold mt-1">{formatPrice(asset.week_52_low)}</div>
+              <div className="text-xl font-bold mt-1">{formatPrice(asset.week_52_low, asset.asset_type)}</div>
             </CardContent>
           </Card>
         )}
@@ -555,9 +559,9 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                         <XAxis dataKey="date" />
-                        <YAxis tickFormatter={(value) => `₹${value.toFixed(0)}`} />
+                        <YAxis tickFormatter={(value) => asset.asset_type === 'commodity' ? `$${value.toFixed(0)}` : `₹${value.toFixed(0)}`} />
                         <Tooltip 
-                          formatter={(value: number) => [formatPrice(value), 'Price']}
+                          formatter={(value: number) => [formatPrice(value, asset.asset_type), 'Price']}
                           labelFormatter={(label) => `Date: ${label}`}
                         />
                         <Area 
@@ -586,7 +590,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center p-3 bg-muted/30 rounded-lg border border-border/50">
                   <div className="text-xs text-muted-foreground mb-1">Current</div>
-                  <div className="font-bold text-lg">{formatPrice(currentPrice)}</div>
+                  <div className="font-bold text-lg">{formatPrice(currentPrice, asset.asset_type)}</div>
                 </div>
                 <div className="text-center p-3 bg-muted/30 rounded-lg border border-border/50">
                   <div className="text-xs text-muted-foreground mb-1">Change</div>
@@ -596,7 +600,7 @@ const StockDetailView = ({ asset }: StockDetailViewProps) => {
                 </div>
                 <div className="text-center p-3 bg-muted/30 rounded-lg border border-border/50">
                   <div className="text-xs text-muted-foreground mb-1">Previous</div>
-                  <div className="font-bold text-lg">{formatPrice(asset.previous_close)}</div>
+                  <div className="font-bold text-lg">{formatPrice(asset.previous_close, asset.asset_type)}</div>
                 </div>
               </div>
             </div>

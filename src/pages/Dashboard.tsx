@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { orderExecutionEngine } from "@/services/orderExecution";
 import MarginWarningSystem from "@/components/MarginWarningSystem";
 import TradingHaltBanner from "@/components/TradingHaltBanner";
+import TradingQueue from "@/components/TradingQueue";
 import { globalServiceManager } from "@/services/globalServiceManager";
 
 interface Asset {
@@ -65,6 +66,7 @@ const Dashboard = () => {
   const [priceChanges, setPriceChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const [competitionStatus, setCompetitionStatus] = useState<string>("not_started");
   const [isShortSell, setIsShortSell] = useState(false);
+  const [session, setSession] = useState<any>(null);
   
   // Real-time calculated portfolio values
   const [calculatedPortfolio, setCalculatedPortfolio] = useState<Portfolio | null>(null);
@@ -192,12 +194,14 @@ const Dashboard = () => {
           // For short positions:
           // - We received cash when we sold: quantity * average_price (already in cash balance)
           // - We owe shares worth: quantity * current_price (this is a liability)
+          // - P&L = (average_price - current_price) * quantity (profit when price goes down)
           positionValue = position.quantity * currentPrice; // Current value of what we owe
           profitLoss = position.quantity * (position.average_price - currentPrice);
           totalShortValue += positionValue; // Add to liability
         } else {
           // For long positions:
           // - We own shares worth: quantity * current_price
+          // - P&L = (current_price - average_price) * quantity (profit when price goes up)
           positionValue = position.quantity * currentPrice; // Current value of what we own
           profitLoss = position.quantity * (currentPrice - position.average_price);
           totalLongValue += positionValue; // Add to assets
@@ -242,6 +246,12 @@ const Dashboard = () => {
   }, [fetchPortfolio, fetchPositions, fetchAssets, fetchNews, fetchCompetitionStatus]);
 
   useEffect(() => {
+    // Get session first
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    };
+
     // Initialize global services
     const initializeGlobalServices = async () => {
       try {
@@ -251,6 +261,7 @@ const Dashboard = () => {
       }
     };
 
+    getSession();
     initializeGlobalServices();
     fetchData();
 
@@ -313,6 +324,85 @@ const Dashboard = () => {
     calculateRealTimePortfolio();
   }, [calculateRealTimePortfolio]);
 
+  // Add a function to recalculate all portfolios (for fixing existing data)
+  const recalculateAllPortfolios = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      // Get all positions for the user
+      const { data: userPositions } = await supabase
+        .from('positions')
+        .select('*, assets(*)')
+        .eq('user_id', session.user.id);
+
+      if (!userPositions || userPositions.length === 0) return;
+
+      let totalLongValue = 0;
+      let totalShortValue = 0;
+
+      // Recalculate each position
+      for (const position of userPositions) {
+        const currentPrice = position.assets?.current_price || 0;
+        let positionValue: number;
+        let profitLoss: number;
+
+        if (position.is_short) {
+          positionValue = position.quantity * currentPrice;
+          profitLoss = position.quantity * (position.average_price - currentPrice);
+          totalShortValue += positionValue;
+        } else {
+          positionValue = position.quantity * currentPrice;
+          profitLoss = position.quantity * (currentPrice - position.average_price);
+          totalLongValue += positionValue;
+        }
+
+        // Update position in database
+        await supabase
+          .from('positions')
+          .update({
+            current_value: positionValue,
+            profit_loss: profitLoss,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', position.id);
+      }
+
+      // Update portfolio
+      const { data: currentPortfolio } = await supabase
+        .from('portfolios')
+        .select('cash_balance')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (currentPortfolio) {
+        const totalPortfolioValue = currentPortfolio.cash_balance + totalLongValue - totalShortValue;
+        const initialValue = 500000;
+        const profitLoss = totalPortfolioValue - initialValue;
+        const profitLossPercentage = initialValue > 0 ? (profitLoss / initialValue) * 100 : 0;
+
+        await supabase
+          .from('portfolios')
+          .update({
+            total_value: totalPortfolioValue,
+            profit_loss: profitLoss,
+            profit_loss_percentage: profitLossPercentage,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', session.user.id);
+      }
+
+      console.log('Portfolio recalculated with correct P&L values');
+    } catch (error) {
+      console.error('Error recalculating portfolio:', error);
+    }
+  }, []);
+
+  // Recalculate portfolio on component mount to fix existing data
+  useEffect(() => {
+    recalculateAllPortfolios();
+  }, [recalculateAllPortfolios]);
+
 
   const handlePlaceOrder = async (isBuy: boolean) => {
     if (!selectedAsset || !quantity) {
@@ -333,6 +423,37 @@ const Dashboard = () => {
       const price = orderType === "limit" && limitPrice ? parseFloat(limitPrice) : null;
       const stopPrice = orderType === "stop_loss" && limitPrice ? parseFloat(limitPrice) : null;
 
+      // First, create order in pending status
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .insert([{
+          user_id: session.user.id,
+          asset_id: selectedAsset,
+          order_type: orderType as "market" | "limit" | "stop_loss",
+          quantity: qty,
+          price: price,
+          stop_price: stopPrice,
+          is_buy: isBuy,
+          is_short_sell: isShortSell,
+          status: "pending" as const,
+        }])
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error('Error creating order record:', orderError);
+        toast.error('Failed to create order');
+        return;
+      }
+
+      // Update order status to processing
+      await supabase
+        .from("orders")
+        .update({ status: "processing" })
+        .eq("id", orderData.id);
+
+      toast.success(`Order placed! Processing ${isBuy ? "buy" : "sell"} order...`);
+
       // Execute order using the order execution engine
       const result = await orderExecutionEngine.executeOrder(
         session.user.id,
@@ -346,20 +467,15 @@ const Dashboard = () => {
       );
 
       if (result.success) {
-        // Create order record for history
-        await supabase.from("orders").insert([{
-          user_id: session.user.id,
-          asset_id: selectedAsset,
-          order_type: orderType as "market" | "limit" | "stop_loss",
-          quantity: qty,
-          price: price,
-          stop_price: stopPrice,
-          is_buy: isBuy,
-          is_short_sell: isShortSell,
-          status: "executed" as const,
-          executed_price: result.executedPrice,
-          executed_at: result.executedAt,
-        }]);
+        // Update order status to executed
+        await supabase
+          .from("orders")
+          .update({
+            status: "executed",
+            executed_price: result.executedPrice,
+            executed_at: result.executedAt,
+          })
+          .eq("id", orderData.id);
 
         toast.success(`${isBuy ? "Buy" : "Sell"} order executed successfully!`);
         setQuantity("");
@@ -367,6 +483,15 @@ const Dashboard = () => {
         setIsShortSell(false);
         fetchData();
       } else {
+        // Update order status to failed
+        await supabase
+          .from("orders")
+          .update({
+            status: "failed",
+            error_message: result.message,
+          })
+          .eq("id", orderData.id);
+
         console.error('Order execution failed:', result.message);
         toast.error(result.message);
       }
@@ -500,7 +625,7 @@ const Dashboard = () => {
         </div>
 
         {/* Trading & News Section */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-4">
           {/* Trading Panel */}
           <Card className="lg:col-span-2 card-enhanced glow-primary">
             <CardHeader>
@@ -607,6 +732,9 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Trading Queue */}
+          <TradingQueue userId={session?.user?.id || ''} />
 
           {/* News Feed */}
           <Card className="card-enhanced">

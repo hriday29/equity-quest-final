@@ -361,132 +361,118 @@ export class OrderExecutionEngine {
     isShortSell: boolean = false
   ): Promise<OrderExecutionResult> {
     try {
-      // Get current position
-      const { data: currentPosition } = await supabase
+      // Get current positions (both long and short)
+      const { data: currentPositions } = await supabase
         .from('positions')
         .select('*')
         .eq('user_id', userId)
-        .eq('asset_id', assetId)
-        .single();
+        .eq('asset_id', assetId);
 
-      const currentQuantity = currentPosition?.quantity || 0;
-      const currentAveragePrice = currentPosition?.average_price || 0;
-      const isCurrentlyShort = currentPosition?.is_short || false;
-
-      let newQuantity: number;
-      let newAveragePrice: number;
-      let newIsShort: boolean;
+      const longPosition = currentPositions?.find(p => !p.is_short);
+      const shortPosition = currentPositions?.find(p => p.is_short);
 
       if (isBuy) {
-        if (isCurrentlyShort) {
+        if (isShortSell) {
+          // This shouldn't happen - short sell should be isBuy = false
+          return { success: false, message: 'Invalid order: Cannot buy and short sell simultaneously' };
+        }
+
+        if (shortPosition && shortPosition.quantity > 0) {
           // Covering short position
-          newQuantity = Math.max(0, currentQuantity - quantity);
-          newAveragePrice = currentAveragePrice;
-          newIsShort = newQuantity > 0;
-        } else {
-          // Regular buy
-          newQuantity = currentQuantity + quantity;
-          if (currentQuantity > 0) {
-            // Calculate weighted average price
-            const currentValue = currentQuantity * currentAveragePrice;
-            const newValue = quantity * executionPrice;
-            newAveragePrice = (currentValue + newValue) / newQuantity;
+          const coverQuantity = Math.min(quantity, shortPosition.quantity);
+          const remainingQuantity = shortPosition.quantity - coverQuantity;
+          
+          if (remainingQuantity > 0) {
+            // Partial cover - update short position
+            const { error: updateError } = await supabase
+              .from('positions')
+              .update({
+                quantity: remainingQuantity,
+                current_value: remainingQuantity * executionPrice,
+                profit_loss: remainingQuantity * (shortPosition.average_price - executionPrice),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', shortPosition.id);
+
+            if (updateError) {
+              console.error('Short position update error:', updateError);
+              return { success: false, message: 'Failed to update short position' };
+            }
           } else {
-            newAveragePrice = executionPrice;
+            // Complete cover - delete short position
+            const { error: deleteError } = await supabase
+              .from('positions')
+              .delete()
+              .eq('id', shortPosition.id);
+
+            if (deleteError) {
+              console.error('Short position deletion error:', deleteError);
+              return { success: false, message: 'Failed to delete short position' };
+            }
           }
-          newIsShort = false;
+
+          // Add remaining quantity as long position if any
+          const remainingBuyQuantity = quantity - coverQuantity;
+          if (remainingBuyQuantity > 0) {
+            await this.createOrUpdateLongPosition(userId, assetId, remainingBuyQuantity, executionPrice, longPosition);
+          }
+        } else {
+          // Regular buy - add to long position
+          await this.createOrUpdateLongPosition(userId, assetId, quantity, executionPrice, longPosition);
         }
       } else {
         if (isShortSell) {
-          // Opening short position
-          if (isCurrentlyShort) {
-            // Adding to short position
-            newQuantity = currentQuantity + quantity;
-            if (currentQuantity > 0) {
-              const currentValue = currentQuantity * currentAveragePrice;
-              const newValue = quantity * executionPrice;
-              newAveragePrice = (currentValue + newValue) / newQuantity;
-            } else {
-              newAveragePrice = executionPrice;
+          // Short sell - add to short position
+          await this.createOrUpdateShortPosition(userId, assetId, quantity, executionPrice, shortPosition);
+        } else {
+          // Regular sell - reduce long position
+          if (!longPosition || longPosition.quantity < quantity) {
+            return { success: false, message: 'Insufficient long position for regular sell' };
+          }
+
+          const remainingQuantity = longPosition.quantity - quantity;
+          
+          if (remainingQuantity > 0) {
+            // Partial sell - update long position
+            const { error: updateError } = await supabase
+              .from('positions')
+              .update({
+                quantity: remainingQuantity,
+                current_value: remainingQuantity * executionPrice,
+                profit_loss: remainingQuantity * (executionPrice - longPosition.average_price),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', longPosition.id);
+
+            if (updateError) {
+              console.error('Long position update error:', updateError);
+              return { success: false, message: 'Failed to update long position' };
             }
           } else {
-            // New short position
-            newQuantity = quantity;
-            newAveragePrice = executionPrice;
+            // Complete sell - delete long position
+            const { error: deleteError } = await supabase
+              .from('positions')
+              .delete()
+              .eq('id', longPosition.id);
+
+            if (deleteError) {
+              console.error('Long position deletion error:', deleteError);
+              return { success: false, message: 'Failed to delete long position' };
+            }
           }
-          newIsShort = true;
-        } else {
-          // Regular sell
-          newQuantity = Math.max(0, currentQuantity - quantity);
-          newAveragePrice = currentAveragePrice;
-          newIsShort = isCurrentlyShort;
         }
       }
 
-      // Update or create position
-      if (newQuantity > 0) {
-        if (currentPosition) {
-          // Update existing position
-          const { error: positionError } = await supabase
-            .from('positions')
-            .update({
-              quantity: newQuantity,
-              average_price: newAveragePrice,
-              current_value: newQuantity * executionPrice,
-              profit_loss: newQuantity * (newIsShort ? (newAveragePrice - executionPrice) : (executionPrice - newAveragePrice)),
-              is_short: newIsShort,
-              initial_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingInitialMargin : null,
-              maintenance_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingMaintenanceMargin : null,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', currentPosition.id);
-
-          if (positionError) {
-            console.error('Position update error:', positionError);
-            return { success: false, message: 'Failed to update position' };
-          }
-        } else {
-          // Create new position
-          const { error: positionError } = await supabase
-            .from('positions')
-            .insert({
-              user_id: userId,
-              asset_id: assetId,
-              quantity: newQuantity,
-              average_price: newAveragePrice,
-              current_value: newQuantity * executionPrice,
-              profit_loss: newQuantity * (newIsShort ? (newAveragePrice - executionPrice) : (executionPrice - newAveragePrice)),
-              is_short: newIsShort,
-              initial_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingInitialMargin : null,
-              maintenance_margin: newIsShort ? newQuantity * executionPrice * this.constraints.shortSellingMaintenanceMargin : null
-            });
-
-          if (positionError) {
-            console.error('Position insert error:', positionError);
-            return { success: false, message: 'Failed to create position' };
-          }
-        }
-      } else if (currentPosition) {
-        // Delete position if quantity becomes zero
-        const { error: deleteError } = await supabase
-          .from('positions')
-          .delete()
-          .eq('id', currentPosition.id);
-
-        if (deleteError) {
-          console.error('Position delete error:', deleteError);
-          return { success: false, message: 'Failed to delete position' };
-        }
-      }
 
       // Update cash balance
       const totalValue = quantity * executionPrice;
       let cashChange: number;
       
       if (isBuy) {
-        if (isCurrentlyShort) {
+        if (shortPosition && shortPosition.quantity > 0) {
           // Covering short position - pay to buy back
-          cashChange = -(totalValue + transactionCost);
+          const coverQuantity = Math.min(quantity, shortPosition.quantity);
+          cashChange = -(coverQuantity * executionPrice + transactionCost);
         } else {
           // Regular buy
           cashChange = -(totalValue + transactionCost);
@@ -608,12 +594,14 @@ export class OrderExecutionEngine {
           // For short positions:
           // - We received cash when we sold: quantity * average_price (already in cash balance)
           // - We owe shares worth: quantity * current_price (this is a liability)
+          // - P&L = (average_price - current_price) * quantity (profit when price goes down)
           positionValue = position.quantity * currentPrice; // Current value of what we owe
           profitLoss = position.quantity * (position.average_price - currentPrice);
           totalShortValue += positionValue; // Add to liability
         } else {
           // For long positions:
           // - We own shares worth: quantity * current_price
+          // - P&L = (current_price - average_price) * quantity (profit when price goes up)
           positionValue = position.quantity * currentPrice; // Current value of what we own
           profitLoss = position.quantity * (currentPrice - position.average_price);
           totalLongValue += positionValue; // Add to assets
@@ -762,6 +750,118 @@ export class OrderExecutionEngine {
       console.log(`Position ${positionId} liquidated for user ${userId}`);
     } catch (error) {
       console.error('Position liquidation error:', error);
+    }
+  }
+
+  /**
+   * Create or update long position
+   */
+  private async createOrUpdateLongPosition(
+    userId: string,
+    assetId: string,
+    quantity: number,
+    executionPrice: number,
+    existingLongPosition: any
+  ): Promise<void> {
+    if (existingLongPosition) {
+      // Update existing long position
+      const newQuantity = existingLongPosition.quantity + quantity;
+      const currentValue = existingLongPosition.quantity * existingLongPosition.average_price;
+      const newValue = quantity * executionPrice;
+      const newAveragePrice = (currentValue + newValue) / newQuantity;
+
+      const { error } = await supabase
+        .from('positions')
+        .update({
+          quantity: newQuantity,
+          average_price: newAveragePrice,
+          current_value: newQuantity * executionPrice,
+          profit_loss: newQuantity * (executionPrice - newAveragePrice),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingLongPosition.id);
+
+      if (error) {
+        console.error('Long position update error:', error);
+        throw new Error('Failed to update long position');
+      }
+    } else {
+      // Create new long position
+      const { error } = await supabase
+        .from('positions')
+        .insert({
+          user_id: userId,
+          asset_id: assetId,
+          quantity: quantity,
+          average_price: executionPrice,
+          current_value: quantity * executionPrice,
+          profit_loss: 0,
+          is_short: false,
+          initial_margin: null,
+          maintenance_margin: null
+        });
+
+      if (error) {
+        console.error('Long position creation error:', error);
+        throw new Error('Failed to create long position');
+      }
+    }
+  }
+
+  /**
+   * Create or update short position
+   */
+  private async createOrUpdateShortPosition(
+    userId: string,
+    assetId: string,
+    quantity: number,
+    executionPrice: number,
+    existingShortPosition: any
+  ): Promise<void> {
+    if (existingShortPosition) {
+      // Update existing short position
+      const newQuantity = existingShortPosition.quantity + quantity;
+      const currentValue = existingShortPosition.quantity * existingShortPosition.average_price;
+      const newValue = quantity * executionPrice;
+      const newAveragePrice = (currentValue + newValue) / newQuantity;
+
+      const { error } = await supabase
+        .from('positions')
+        .update({
+          quantity: newQuantity,
+          average_price: newAveragePrice,
+          current_value: newQuantity * executionPrice,
+          profit_loss: newQuantity * (newAveragePrice - executionPrice),
+          initial_margin: newQuantity * executionPrice * this.constraints.shortSellingInitialMargin,
+          maintenance_margin: newQuantity * executionPrice * this.constraints.shortSellingMaintenanceMargin,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingShortPosition.id);
+
+      if (error) {
+        console.error('Short position update error:', error);
+        throw new Error('Failed to update short position');
+      }
+    } else {
+      // Create new short position
+      const { error } = await supabase
+        .from('positions')
+        .insert({
+          user_id: userId,
+          asset_id: assetId,
+          quantity: quantity,
+          average_price: executionPrice,
+          current_value: quantity * executionPrice,
+          profit_loss: 0,
+          is_short: true,
+          initial_margin: quantity * executionPrice * this.constraints.shortSellingInitialMargin,
+          maintenance_margin: quantity * executionPrice * this.constraints.shortSellingMaintenanceMargin
+        });
+
+      if (error) {
+        console.error('Short position creation error:', error);
+        throw new Error('Failed to create short position');
+      }
     }
   }
 }

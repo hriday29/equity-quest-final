@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Building2, Zap, DollarSign, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, Building2, Zap, DollarSign, Activity, BarChart3 } from "lucide-react";
 import { sectors } from "@/data/nifty50Assets";
 import { priceUpdateService, PriceUpdateEvent } from "@/services/priceUpdateService";
 
@@ -162,9 +162,20 @@ const SectorNavigation = ({ onAssetSelect, selectedAsset }: SectorNavigationProp
       case 'Oil & Gas':
       case 'Power':
         return <Activity className="h-4 w-4" />;
+      case 'Commodities':
+        return <TrendingUp className="h-4 w-4" />;
+      case 'Index':
+        return <BarChart3 className="h-4 w-4" />;
       default:
         return <Building2 className="h-4 w-4" />;
     }
+  };
+
+  const formatPrice = (price: number, assetType?: string) => {
+    if (assetType === 'commodity') {
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const getSectorColor = (sector: string) => {
@@ -185,6 +196,8 @@ const SectorNavigation = ({ onAssetSelect, selectedAsset }: SectorNavigationProp
         return 'bg-red-500/10 text-red-600 border-red-200';
       case 'Commodities':
         return 'bg-yellow-500/10 text-yellow-600 border-yellow-200';
+      case 'Index':
+        return 'bg-indigo-500/10 text-indigo-600 border-indigo-200';
       default:
         return 'bg-gray-500/10 text-gray-600 border-gray-200';
     }
@@ -267,7 +280,7 @@ const SectorNavigation = ({ onAssetSelect, selectedAsset }: SectorNavigationProp
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium transition-all duration-300">
-                            ₹{asset.current_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {formatPrice(asset.current_price, asset.asset_type)}
                           </span>
                           <span className={`text-xs font-medium transition-all duration-300 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {change >= 0 ? '+' : ''}{change.toFixed(2)}%

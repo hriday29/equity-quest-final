@@ -86,7 +86,14 @@ serve(async (req) => {
     if (mechanics.open_gap && mechanics.open_gap !== 0) {
       for (const asset of assets) {
         const oldPrice = parseFloat(asset.current_price);
-        const newPrice = oldPrice * (1 + mechanics.open_gap);
+        
+        // Check for asset-specific impact first
+        let openGap = mechanics.open_gap;
+        if (mechanics.asset_specific_impacts && mechanics.asset_specific_impacts[asset.symbol]) {
+          openGap = mechanics.asset_specific_impacts[asset.symbol].open_gap;
+        }
+        
+        const newPrice = oldPrice * (1 + openGap);
 
         await supabaseClient
           .from('assets')
@@ -103,7 +110,7 @@ serve(async (req) => {
             asset_id: asset.id,
             old_price: oldPrice,
             new_price: newPrice,
-            change_percentage: mechanics.open_gap * 100,
+            change_percentage: openGap * 100,
             fluctuation_type: 'gap',
             event_id: eventId,
           });
@@ -111,7 +118,7 @@ serve(async (req) => {
         updates.push({
           symbol: asset.symbol,
           type: 'gap',
-          change: mechanics.open_gap * 100,
+          change: openGap * 100,
         });
       }
     } else if (mechanics.open_gap === 0) {
