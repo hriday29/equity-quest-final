@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { orderExecutionEngine } from "@/services/orderExecution";
 import MarginWarningSystem from "@/components/MarginWarningSystem";
 import TradingHaltBanner from "@/components/TradingHaltBanner";
+import { globalServiceManager } from "@/services/globalServiceManager";
 
 interface Asset {
   id: string;
@@ -241,6 +242,16 @@ const Dashboard = () => {
   }, [fetchPortfolio, fetchPositions, fetchAssets, fetchNews, fetchCompetitionStatus]);
 
   useEffect(() => {
+    // Initialize global services
+    const initializeGlobalServices = async () => {
+      try {
+        await globalServiceManager.initialize();
+      } catch (error) {
+        console.error('Error initializing global services:', error);
+      }
+    };
+
+    initializeGlobalServices();
     fetchData();
 
     const assetsChannel = supabase
@@ -271,11 +282,29 @@ const Dashboard = () => {
       })
       .subscribe();
 
+    // Listen for live price updates from the noise service
+    const handleAssetPriceUpdate = (event: CustomEvent) => {
+      const { assetId, newPrice, changePercentage } = event.detail;
+      console.log(`📊 Live price update: Asset ${assetId} = ₹${newPrice} (${changePercentage > 0 ? '+' : ''}${changePercentage.toFixed(3)}%)`);
+      
+      // Update the assets array with the new price
+      setAssets(prevAssets => 
+        prevAssets.map(asset => 
+          asset.id === assetId 
+            ? { ...asset, current_price: newPrice }
+            : asset
+        )
+      );
+    };
+
+    window.addEventListener('assetPriceUpdate', handleAssetPriceUpdate as EventListener);
+
     return () => {
       supabase.removeChannel(assetsChannel);
       supabase.removeChannel(newsChannel);
       supabase.removeChannel(portfolioChannel);
       supabase.removeChannel(competitionChannel);
+      window.removeEventListener('assetPriceUpdate', handleAssetPriceUpdate as EventListener);
     };
   }, [fetchData, fetchAssets, fetchNews, fetchPortfolio, fetchCompetitionStatus]);
 

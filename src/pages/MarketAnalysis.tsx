@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { priceUpdateService, PriceUpdateEvent } from "@/services/priceUpdateService";
+import { globalServiceManager } from "@/services/globalServiceManager";
 
 interface Asset {
   id: string;
@@ -48,13 +49,41 @@ const MarketAnalysis = () => {
   const [priceUpdateSubscription, setPriceUpdateSubscription] = useState<string | null>(null);
 
   useEffect(() => {
+    // Initialize global services
+    const initializeGlobalServices = async () => {
+      try {
+        await globalServiceManager.initialize();
+      } catch (error) {
+        console.error('Error initializing global services:', error);
+      }
+    };
+
+    initializeGlobalServices();
     fetchAssets();
     initializePriceUpdates();
+    
+    // Listen for live price updates from the noise service
+    const handleAssetPriceUpdate = (event: CustomEvent) => {
+      const { assetId, newPrice } = event.detail;
+      console.log(`📊 Market Analysis - Live price update: Asset ${assetId} = ₹${newPrice}`);
+      
+      // Update the assets array with the new price
+      setAssets(prevAssets => 
+        prevAssets.map(asset => 
+          asset.id === assetId 
+            ? { ...asset, current_price: newPrice }
+            : asset
+        )
+      );
+    };
+
+    window.addEventListener('assetPriceUpdate', handleAssetPriceUpdate as EventListener);
     
     return () => {
       if (priceUpdateSubscription) {
         priceUpdateService.unsubscribe(priceUpdateSubscription);
       }
+      window.removeEventListener('assetPriceUpdate', handleAssetPriceUpdate as EventListener);
     };
   }, []);
 

@@ -18,6 +18,7 @@ import { blackSwanEventService } from "@/services/blackSwanEvent";
 import { initialDataFetchService } from "@/services/initialDataFetch";
 import { priceNoiseService } from "@/services/priceNoiseService";
 import { priceUpdateService } from "@/services/priceUpdateService";
+import { globalServiceManager } from "@/services/globalServiceManager";
 import MaintenanceModeToggle from "@/components/MaintenanceModeToggle";
 
 interface Asset {
@@ -101,11 +102,8 @@ const Admin = () => {
   }>>([]);
 
   const updateNoiseStats = useCallback(() => {
-    const stats = priceNoiseService.getNoiseStats();
+    const stats = globalServiceManager.getNoiseStatus();
     setNoiseStats(stats);
-    
-    // Check and restart if needed
-    priceNoiseService.checkAndRestart();
   }, []);
 
   const fetchShortSellingStatus = useCallback(async () => {
@@ -450,23 +448,11 @@ const Admin = () => {
 
   const startNoiseFluctuation = async () => {
     try {
-      await priceNoiseService.startNoiseFluctuation();
-      toast.success("Price noise fluctuation started!");
+      await globalServiceManager.startNoise();
+      toast.success("Price noise fluctuation started globally!");
       
-      // Update stats immediately and set up monitoring
+      // Update stats immediately
       updateNoiseStats();
-      
-      // Set up a monitoring interval to ensure it stays running
-      const monitoringInterval = setInterval(() => {
-        const stats = priceNoiseService.getNoiseStats();
-        if (!stats.isRunning && priceNoiseService.getNoiseConfig().isEnabled) {
-          console.warn("Noise service stopped unexpectedly, restarting...");
-          priceNoiseService.startNoiseFluctuation();
-        }
-      }, 10000); // Check every 10 seconds
-      
-      // Store interval ID for cleanup (you might want to store this in state)
-      (window as { noiseMonitoringInterval?: NodeJS.Timeout }).noiseMonitoringInterval = monitoringInterval;
       
     } catch (error) {
       console.error('Error starting noise fluctuation:', error);
@@ -476,15 +462,8 @@ const Admin = () => {
 
   const stopNoiseFluctuation = () => {
     try {
-      // Clear monitoring interval
-      const windowWithInterval = window as { noiseMonitoringInterval?: NodeJS.Timeout };
-      if (windowWithInterval.noiseMonitoringInterval) {
-        clearInterval(windowWithInterval.noiseMonitoringInterval);
-        delete windowWithInterval.noiseMonitoringInterval;
-      }
-      
-      priceNoiseService.stopNoiseFluctuation();
-      toast.success("Price noise fluctuation stopped!");
+      globalServiceManager.stopNoise();
+      toast.success("Price noise fluctuation stopped globally!");
       updateNoiseStats();
     } catch (error) {
       console.error('Error stopping noise fluctuation:', error);
