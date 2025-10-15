@@ -66,7 +66,8 @@ const Dashboard = () => {
   const [priceChanges, setPriceChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const [competitionStatus, setCompetitionStatus] = useState<string>("not_started");
   const [isShortSell, setIsShortSell] = useState(false);
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<{ user: { id: string } } | null>(null);
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
   
   // Real-time calculated portfolio values
   const [calculatedPortfolio, setCalculatedPortfolio] = useState<Portfolio | null>(null);
@@ -410,11 +411,34 @@ const Dashboard = () => {
       return;
     }
 
+    // Additional validation
+    const qty = parseFloat(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+
+    if (orderType === "limit" && (!limitPrice || parseFloat(limitPrice) <= 0)) {
+      toast.error("Please enter a valid limit price");
+      return;
+    }
+
+    if (orderType === "stop_loss" && (!limitPrice || parseFloat(limitPrice) <= 0)) {
+      toast.error("Please enter a valid stop price");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
+
+      // Check competition status first
+      if (competitionStatus !== "active") {
+        toast.error(`Trading is not available. Competition status: ${competitionStatus}`);
+        return;
+      }
 
       const asset = assets.find(a => a.id === selectedAsset);
       if (!asset) throw new Error("Asset not found");
@@ -423,26 +447,86 @@ const Dashboard = () => {
       const price = orderType === "limit" && limitPrice ? parseFloat(limitPrice) : null;
       const stopPrice = orderType === "stop_loss" && limitPrice ? parseFloat(limitPrice) : null;
 
+      // Collect debug information
+      const debugData = {
+        userId: session.user.id,
+        assetId: selectedAsset,
+        asset: asset,
+        orderType,
+        quantity: qty,
+        price,
+        stopPrice,
+        isBuy,
+        isShortSell,
+        competitionStatus,
+        timestamp: new Date().toISOString()
+      };
+      setDebugInfo(debugData);
+      console.log('Order debug info:', debugData);
+
       // First, create order in pending status
-      const { data: orderData, error: orderError } = await supabase
-        .from("orders")
-        .insert([{
+      let orderData: { id: string } | null = null;
+
+      // Only add is_short_sell if the column exists
+      try {
+        const { data: orderDataResult, error: orderError } = await supabase
+          .from("orders")
+          .insert([{
+            user_id: session.user.id,
+            asset_id: selectedAsset,
+            order_type: orderType as "market" | "limit" | "stop_loss",
+            quantity: qty,
+            price: price,
+            stop_price: stopPrice,
+            is_buy: isBuy,
+            is_short_sell: isShortSell,
+            status: "pending" as const,
+          }])
+          .select()
+          .single();
+        
+        if (orderError) {
+          // If is_short_sell column doesn't exist, try without it
+          if (orderError.message.includes('is_short_sell')) {
+            console.warn('is_short_sell column not found, creating order without it');
+            const { data: orderDataResult2, error: orderError2 } = await supabase
+              .from("orders")
+              .insert([{
+                user_id: session.user.id,
+                asset_id: selectedAsset,
+                order_type: orderType as "market" | "limit" | "stop_loss",
+                quantity: qty,
+                price: price,
+                stop_price: stopPrice,
+                is_buy: isBuy,
+                status: "pending" as const,
+              }])
+              .select()
+              .single();
+            
+            if (orderError2) {
+              throw orderError2;
+            }
+            orderData = orderDataResult2;
+          } else {
+            throw orderError;
+          }
+        } else {
+          orderData = orderDataResult;
+        }
+      } catch (error) {
+        console.error('Error creating order record:', error);
+        console.error('Order details:', {
           user_id: session.user.id,
           asset_id: selectedAsset,
-          order_type: orderType as "market" | "limit" | "stop_loss",
+          order_type: orderType,
           quantity: qty,
           price: price,
           stop_price: stopPrice,
           is_buy: isBuy,
-          is_short_sell: isShortSell,
-          status: "pending" as const,
-        }])
-        .select()
-        .single();
-
-      if (orderError) {
-        console.error('Error creating order record:', orderError);
-        toast.error('Failed to create order');
+          is_short_sell: isShortSell
+        });
+        toast.error(`Failed to create order: ${error instanceof Error ? error.message : 'Database error'}`);
         return;
       }
 
@@ -493,7 +577,18 @@ const Dashboard = () => {
           .eq("id", orderData.id);
 
         console.error('Order execution failed:', result.message);
-        toast.error(result.message);
+        console.error('Order execution details:', {
+          userId: session.user.id,
+          assetId: selectedAsset,
+          orderType,
+          quantity: qty,
+          price,
+          stopPrice,
+          isBuy,
+          isShortSell,
+          result
+        });
+        toast.error(`Order failed: ${result.message}`);
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Failed to place order";
