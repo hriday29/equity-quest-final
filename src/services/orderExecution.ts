@@ -183,12 +183,30 @@ export class OrderExecutionEngine {
       console.log('Order processing result:', executionResult);
 
       if (executionResult.success) {
+        console.log('Order processing successful, updating portfolio values...');
+        
         // 8. Update portfolio values
-        await this.updatePortfolioValues(userId);
+        try {
+          await this.updatePortfolioValues(userId);
+          console.log('Portfolio values updated successfully');
+        } catch (error) {
+          console.error('Error updating portfolio values:', error);
+          return {
+            success: false,
+            message: `Order processed but failed to update portfolio: ${error instanceof Error ? error.message : 'Unknown error'}`
+          };
+        }
 
         // 9. Check for margin calls on short positions
-        await this.checkMarginCalls(userId);
+        try {
+          await this.checkMarginCalls(userId);
+          console.log('Margin calls checked successfully');
+        } catch (error) {
+          console.error('Error checking margin calls:', error);
+          // Don't fail the order for margin call check errors
+        }
 
+        console.log('Order execution completed successfully');
         return {
           success: true,
           message: 'Order executed successfully',
@@ -196,6 +214,7 @@ export class OrderExecutionEngine {
           executedAt: new Date().toISOString()
         };
       } else {
+        console.error('Order processing failed:', executionResult);
         return executionResult;
       }
     } catch (error) {
@@ -442,14 +461,27 @@ export class OrderExecutionEngine {
         } else {
           console.log('Regular buy - creating/updating long position');
           // Regular buy - add to long position
-          await this.createOrUpdateLongPosition(userId, assetId, quantity, executionPrice, longPosition);
-          console.log('Long position created/updated successfully');
+          try {
+            await this.createOrUpdateLongPosition(userId, assetId, quantity, executionPrice, longPosition);
+            console.log('Long position created/updated successfully');
+          } catch (error) {
+            console.error('Error creating/updating long position:', error);
+            return { success: false, message: `Failed to create/update long position: ${error instanceof Error ? error.message : 'Unknown error'}` };
+          }
         }
       } else {
         if (isShortSell) {
+          console.log('Short sell - creating/updating short position');
           // Short sell - add to short position
-          await this.createOrUpdateShortPosition(userId, assetId, quantity, executionPrice, shortPosition);
+          try {
+            await this.createOrUpdateShortPosition(userId, assetId, quantity, executionPrice, shortPosition);
+            console.log('Short position created/updated successfully');
+          } catch (error) {
+            console.error('Error creating/updating short position:', error);
+            return { success: false, message: `Failed to create/update short position: ${error instanceof Error ? error.message : 'Unknown error'}` };
+          }
         } else {
+          console.log('Regular sell - reducing long position');
           // Regular sell - reduce long position
           if (!longPosition || longPosition.quantity < quantity) {
             return { success: false, message: 'Insufficient long position for regular sell' };
@@ -459,6 +491,7 @@ export class OrderExecutionEngine {
           
           if (remainingQuantity > 0) {
             // Partial sell - update long position
+            console.log('Partial sell - updating long position');
             const { error: updateError } = await supabase
               .from('positions')
               .update({
@@ -473,8 +506,10 @@ export class OrderExecutionEngine {
               console.error('Long position update error:', updateError);
               return { success: false, message: 'Failed to update long position' };
             }
+            console.log('Long position updated successfully');
           } else {
             // Complete sell - delete long position
+            console.log('Complete sell - deleting long position');
             const { error: deleteError } = await supabase
               .from('positions')
               .delete()
@@ -484,6 +519,7 @@ export class OrderExecutionEngine {
               console.error('Long position deletion error:', deleteError);
               return { success: false, message: 'Failed to delete long position' };
             }
+            console.log('Long position deleted successfully');
           }
         }
       }
@@ -514,6 +550,7 @@ export class OrderExecutionEngine {
       }
 
       // Get current cash balance and update it
+      console.log('Updating cash balance with change:', cashChange);
       const { data: currentPortfolio } = await supabase
         .from('portfolios')
         .select('cash_balance')
@@ -522,6 +559,7 @@ export class OrderExecutionEngine {
 
       if (currentPortfolio) {
         const newCashBalance = currentPortfolio.cash_balance + cashChange;
+        console.log('New cash balance:', newCashBalance);
         
         const { error: cashError } = await supabase
           .from('portfolios')
@@ -532,8 +570,13 @@ export class OrderExecutionEngine {
           .eq('user_id', userId);
 
         if (cashError) {
+          console.error('Cash balance update error:', cashError);
           return { success: false, message: 'Failed to update cash balance' };
         }
+        console.log('Cash balance updated successfully');
+      } else {
+        console.error('No portfolio found for user:', userId);
+        return { success: false, message: 'Portfolio not found' };
       }
 
       return { success: true, message: 'Order executed successfully' };
