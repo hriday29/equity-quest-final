@@ -41,7 +41,8 @@ const TradingQueue = ({ userId }: TradingQueueProps) => {
         return;
       }
 
-      const { data, error } = await supabase
+      // Try to fetch with is_short_sell column first, fallback if it doesn't exist
+      let { data, error } = await supabase
         .from('orders')
         .select(`
           id,
@@ -63,6 +64,34 @@ const TradingQueue = ({ userId }: TradingQueueProps) => {
         .in('status', ['pending', 'processing'])
         .order('created_at', { ascending: false });
 
+      // If is_short_sell column doesn't exist, try without it
+      if (error && error.message.includes('is_short_sell')) {
+        console.warn('is_short_sell column not found, fetching orders without it');
+        const fallbackResult = await supabase
+          .from('orders')
+          .select(`
+            id,
+            asset_id,
+            order_type,
+            quantity,
+            price,
+            stop_price,
+            is_buy,
+            status,
+            created_at,
+            executed_at,
+            executed_price,
+            error_message,
+            assets!inner(symbol, name)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['pending', 'processing'])
+          .order('created_at', { ascending: false });
+        
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
+
       if (error) throw error;
 
       const orders: PendingOrder[] = (data || []).map(order => ({
@@ -75,7 +104,7 @@ const TradingQueue = ({ userId }: TradingQueueProps) => {
         price: order.price,
         stop_price: order.stop_price,
         is_buy: order.is_buy,
-        is_short_sell: order.is_short_sell,
+        is_short_sell: order.is_short_sell || false, // Default to false if column doesn't exist
         status: order.status,
         created_at: order.created_at,
         executed_at: order.executed_at,
