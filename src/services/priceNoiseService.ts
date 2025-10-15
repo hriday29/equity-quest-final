@@ -67,7 +67,7 @@ export class PriceNoiseService {
         this.startAssetNoise(asset);
       }
 
-      console.log(`✅ Price noise fluctuation started for ${this.assets.length} assets`);
+      // console.log(`✅ Price noise fluctuation started for ${this.assets.length} assets`);
       
     } catch (error) {
       console.error('Error starting price noise fluctuation:', error);
