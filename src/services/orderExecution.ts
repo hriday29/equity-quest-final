@@ -160,6 +160,16 @@ export class OrderExecutionEngine {
       }
 
       // 7. Execute the order
+      console.log('About to process order execution with:', {
+        userId,
+        assetId,
+        quantity,
+        executionPrice,
+        isBuy,
+        transactionCost,
+        isShortSell
+      });
+      
       const executionResult = await this.processOrderExecution(
         userId,
         assetId,
@@ -169,6 +179,8 @@ export class OrderExecutionEngine {
         transactionCost,
         isShortSell
       );
+      
+      console.log('Order processing result:', executionResult);
 
       if (executionResult.success) {
         // 8. Update portfolio values
@@ -361,6 +373,15 @@ export class OrderExecutionEngine {
     isShortSell: boolean = false
   ): Promise<OrderExecutionResult> {
     try {
+      console.log('Starting processOrderExecution with:', {
+        userId,
+        assetId,
+        quantity,
+        executionPrice,
+        isBuy,
+        transactionCost,
+        isShortSell
+      });
       // Get current positions (both long and short)
       const { data: currentPositions } = await supabase
         .from('positions')
@@ -372,12 +393,14 @@ export class OrderExecutionEngine {
       const shortPosition = currentPositions?.find(p => p.is_short);
 
       if (isBuy) {
+        console.log('Processing BUY order');
         if (isShortSell) {
           // This shouldn't happen - short sell should be isBuy = false
           return { success: false, message: 'Invalid order: Cannot buy and short sell simultaneously' };
         }
 
         if (shortPosition && shortPosition.quantity > 0) {
+          console.log('Covering short position:', { shortPosition, quantity });
           // Covering short position
           const coverQuantity = Math.min(quantity, shortPosition.quantity);
           const remainingQuantity = shortPosition.quantity - coverQuantity;
@@ -417,8 +440,10 @@ export class OrderExecutionEngine {
             await this.createOrUpdateLongPosition(userId, assetId, remainingBuyQuantity, executionPrice, longPosition);
           }
         } else {
+          console.log('Regular buy - creating/updating long position');
           // Regular buy - add to long position
           await this.createOrUpdateLongPosition(userId, assetId, quantity, executionPrice, longPosition);
+          console.log('Long position created/updated successfully');
         }
       } else {
         if (isShortSell) {
@@ -763,6 +788,14 @@ export class OrderExecutionEngine {
     executionPrice: number,
     existingLongPosition: any
   ): Promise<void> {
+    console.log('createOrUpdateLongPosition called with:', {
+      userId,
+      assetId,
+      quantity,
+      executionPrice,
+      existingLongPosition
+    });
+    
     if (existingLongPosition) {
       // Update existing long position
       const newQuantity = existingLongPosition.quantity + quantity;
@@ -786,6 +819,7 @@ export class OrderExecutionEngine {
         throw new Error('Failed to update long position');
       }
     } else {
+      console.log('Creating new long position');
       // Create new long position
       const { error } = await supabase
         .from('positions')
@@ -805,6 +839,7 @@ export class OrderExecutionEngine {
         console.error('Long position creation error:', error);
         throw new Error('Failed to create long position');
       }
+      console.log('New long position created successfully');
     }
   }
 

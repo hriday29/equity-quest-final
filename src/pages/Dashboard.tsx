@@ -539,16 +539,44 @@ const Dashboard = () => {
       toast.success(`Order placed! Processing ${isBuy ? "buy" : "sell"} order...`);
 
       // Execute order using the order execution engine
-      const result = await orderExecutionEngine.executeOrder(
-        session.user.id,
-        selectedAsset,
-        orderType as "market" | "limit" | "stop_loss",
-        qty,
+      console.log('About to execute order with params:', {
+        userId: session.user.id,
+        assetId: selectedAsset,
+        orderType,
+        quantity: qty,
         price,
         stopPrice,
         isBuy,
         isShortSell
-      );
+      });
+      
+      let result;
+      try {
+        // Add timeout to prevent hanging
+        const executionPromise = orderExecutionEngine.executeOrder(
+          session.user.id,
+          selectedAsset,
+          orderType as "market" | "limit" | "stop_loss",
+          qty,
+          price,
+          stopPrice,
+          isBuy,
+          isShortSell
+        );
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Order execution timeout')), 30000)
+        );
+        
+        result = await Promise.race([executionPromise, timeoutPromise]);
+        console.log('Order execution result:', result);
+      } catch (executionError) {
+        console.error('Order execution threw an error:', executionError);
+        result = {
+          success: false,
+          message: `Order execution failed: ${executionError instanceof Error ? executionError.message : 'Unknown error'}`
+        };
+      }
 
       if (result.success) {
         // Update order status to executed
