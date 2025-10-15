@@ -857,7 +857,7 @@ const Dashboard = () => {
           </Card>
 
           {/* Trading Queue */}
-          <TradingQueue userId={session?.user?.id || ''} />
+          {session?.user?.id && <TradingQueue userId={session.user.id} />}
 
           {/* News Feed */}
           <Card className="card-enhanced">

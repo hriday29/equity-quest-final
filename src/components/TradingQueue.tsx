@@ -33,6 +33,14 @@ const TradingQueue = ({ userId }: TradingQueueProps) => {
 
   const fetchPendingOrders = async () => {
     try {
+      // Don't fetch if userId is empty or undefined
+      if (!userId || userId.trim() === '') {
+        console.warn('TradingQueue: userId is empty, skipping fetch');
+        setPendingOrders([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -84,6 +92,13 @@ const TradingQueue = ({ userId }: TradingQueueProps) => {
   };
 
   useEffect(() => {
+    // Don't set up subscription if userId is empty
+    if (!userId || userId.trim() === '') {
+      console.warn('TradingQueue: userId is empty, skipping subscription setup');
+      setLoading(false);
+      return;
+    }
+
     fetchPendingOrders();
     
     // Set up real-time subscription for order updates
