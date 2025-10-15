@@ -282,7 +282,7 @@ const MarketAnalysis = () => {
                     </div> */}
                     <div className="text-center p-4 bg-muted/50 rounded-lg transition-all duration-300 hover:bg-muted/70">
                       <div className="text-2xl font-bold text-purple-600 transition-all duration-300">
-                        {marketStats.activeStocks}
+                        52
                       </div>
                       <div className="text-sm text-muted-foreground">Active Stocks</div>
                     </div>
