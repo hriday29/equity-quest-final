@@ -367,6 +367,7 @@ export type Database = {
           executed_price: number | null
           id: string
           is_buy: boolean
+          is_short_sell: boolean
           order_type: Database["public"]["Enums"]["order_type"]
           price: number | null
           quantity: number
@@ -374,6 +375,7 @@ export type Database = {
           stop_price: number | null
           updated_at: string
           user_id: string
+          error_message: string | null
         }
         Insert: {
           asset_id: string
@@ -382,6 +384,7 @@ export type Database = {
           executed_price?: number | null
           id?: string
           is_buy: boolean
+          is_short_sell?: boolean
           order_type: Database["public"]["Enums"]["order_type"]
           price?: number | null
           quantity: number
@@ -389,6 +392,7 @@ export type Database = {
           stop_price?: number | null
           updated_at?: string
           user_id: string
+          error_message?: string | null
         }
         Update: {
           asset_id?: string
@@ -397,6 +401,7 @@ export type Database = {
           executed_price?: number | null
           id?: string
           is_buy?: boolean
+          is_short_sell?: boolean
           order_type?: Database["public"]["Enums"]["order_type"]
           price?: number | null
           quantity?: number
@@ -404,6 +409,7 @@ export type Database = {
           stop_price?: number | null
           updated_at?: string
           user_id?: string
+          error_message?: string | null
         }
         Relationships: [
           {
@@ -791,7 +797,7 @@ export type Database = {
     Enums: {
       app_role: "owner" | "admin" | "user"
       asset_type: "stock" | "commodity" | "index"
-      order_status: "pending" | "executed" | "cancelled" | "rejected"
+      order_status: "pending" | "executed" | "cancelled" | "rejected" | "processing" | "failed"
       order_type: "market" | "limit" | "stop_loss"
       round_status: "not_started" | "active" | "paused" | "completed"
     }
@@ -923,7 +929,7 @@ export const Constants = {
     Enums: {
       app_role: ["owner", "admin", "user"],
       asset_type: ["stock", "commodity", "index"],
-      order_status: ["pending", "executed", "cancelled", "rejected"],
+      order_status: ["pending", "executed", "cancelled", "rejected", "processing", "failed"],
       order_type: ["market", "limit", "stop_loss"],
       round_status: ["not_started", "active", "paused", "completed"],
     },
